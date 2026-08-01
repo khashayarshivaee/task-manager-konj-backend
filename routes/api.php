@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Support\Facades\Route;
 
@@ -19,3 +20,17 @@ Route::prefix('auth')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout']);
     });
 });
+
+Route::prefix('profile')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+    ])
+    ->group(function (): void {
+        Route::post('/', [ProfileController::class, 'update']);
+
+        Route::put('/password', [
+            ProfileController::class,
+            'updatePassword',
+        ]);
+    });
