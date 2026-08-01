@@ -176,4 +176,80 @@ class AuthenticationTest extends TestCase
             ->getJson('/api/auth/me')
             ->assertUnauthorized();
     }
+
+    public function test_inactive_user_cannot_login(): void
+    {
+        User::factory()->create([
+            'email' => 'inactive@example.com',
+            'password' => 'Password123',
+            'is_active' => false,
+        ]);
+
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'inactive@example.com',
+            'password' => 'Password123',
+            'device_name' => 'phpunit',
+        ]);
+
+        $response
+            ->assertForbidden()
+            ->assertJsonPath(
+                'message',
+                'Your account has been deactivated.'
+            );
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_successful_login_records_time_and_ip_address(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => 'Password123',
+        ]);
+
+        $this
+            ->withServerVariables([
+                'REMOTE_ADDR' => '203.0.113.10',
+            ])
+            ->postJson('/api/auth/login', [
+                'email' => 'test@example.com',
+                'password' => 'Password123',
+                'device_name' => 'phpunit',
+            ])
+            ->assertOk();
+
+        $user->refresh();
+
+        $this->assertNotNull($user->last_login_at);
+        $this->assertSame('203.0.113.10', $user->last_login_ip);
+    }
+
+    public function test_inactive_user_cannot_use_existing_token(): void
+    {
+        $user = User::factory()->create([
+            'is_active' => true,
+        ]);
+
+        $accessToken = $user
+            ->createToken('phpunit')
+            ->plainTextToken;
+
+        $user->forceFill([
+            'is_active' => false,
+        ])->save();
+
+        $response = $this
+            ->withToken($accessToken)
+            ->getJson('/api/auth/me');
+
+        $response
+            ->assertForbidden()
+            ->assertJsonPath(
+                'message',
+                'Your account has been deactivated.'
+            );
+
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+    }
 }

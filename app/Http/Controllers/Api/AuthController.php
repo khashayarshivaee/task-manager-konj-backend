@@ -43,6 +43,9 @@ class AuthController extends Controller
     /**
      * ورود کاربر و ایجاد توکن دسترسی.
      */
+    /**
+     * ورود کاربر و ایجاد توکن دسترسی.
+     */
     public function login(LoginRequest $request): JsonResponse
     {
         $validated = $request->validated();
@@ -56,6 +59,17 @@ class AuthController extends Controller
                 'message' => 'The provided credentials are incorrect.',
             ], Response::HTTP_UNAUTHORIZED);
         }
+
+        if (! $user->isActive()) {
+            return response()->json([
+                'message' => 'Your account has been deactivated.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        $user->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+        ])->save();
 
         $accessToken = $user
             ->createToken($validated['device_name'])
