@@ -100,6 +100,28 @@ class User extends Authenticatable
          );
      }
 
+     /**
+      * Get tasks created by the user.
+      */
+     public function createdTasks(): HasMany
+     {
+         return $this->hasMany(
+             Task::class,
+             'created_by'
+         );
+     }
+
+     /**
+      * Get tasks assigned to the user.
+      */
+     public function assignedTasks(): HasMany
+     {
+         return $this->hasMany(
+             Task::class,
+             'assigned_to'
+         );
+     }
+
     protected function casts(): array
     {
         return [

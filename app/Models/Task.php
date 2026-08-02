@@ -4,35 +4,32 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\ProjectStatus;
+use App\Enums\TaskPriority;
+use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+
 #[Fillable([
-    'workspace_id',
+    'project_id',
     'created_by',
-    'name',
-    'slug',
+    'assigned_to',
+    'title',
     'description',
     'status',
-    'color',
+    'priority',
     'starts_at',
     'due_at',
+    'completed_at',
+    'position',
 ])]
-class Project extends Model
+class Task extends Model
 {
-    /**
-     * Get the workspace containing the project.
-     */
-    public function workspace(): BelongsTo
+    public function project(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Project::class);
     }
 
-    /**
-     * Get the user who created the project.
-     */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(
@@ -41,25 +38,26 @@ class Project extends Model
         );
     }
 
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'assigned_to'
+        );
+    }
+
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'status' => ProjectStatus::class,
+            'status' => TaskStatus::class,
+            'priority' => TaskPriority::class,
             'starts_at' => 'date',
             'due_at' => 'date',
+            'completed_at' => 'datetime',
+            'position' => 'integer',
         ];
-    }
-
-    /**
-     * Get tasks belonging to the project.
-     */
-    public function tasks(): HasMany
-    {
-        return $this->hasMany(Task::class);
     }
 }

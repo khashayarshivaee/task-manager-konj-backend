@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\TaskController;
 Route::prefix('auth')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register'])
         ->middleware('throttle:5,1');
@@ -79,7 +80,49 @@ Route::prefix('workspaces')
             'destroy',
         ]);
 
+        Route::get(
+            '/{workspace}/projects/{project}/tasks',
+            [
+                TaskController::class,
+                'index',
+            ]
+        );
+
+        Route::post(
+            '/{workspace}/projects/{project}/tasks',
+            [
+                TaskController::class,
+                'store',
+            ]
+        );
+
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/{task}',
+            [
+                TaskController::class,
+                'show',
+            ]
+        );
+
+        Route::put(
+            '/{workspace}/projects/{project}/tasks/{task}',
+            [
+                TaskController::class,
+                'update',
+            ]
+        );
+
+        Route::delete(
+            '/{workspace}/projects/{project}/tasks/{task}',
+            [
+                TaskController::class,
+                'destroy',
+            ]
+        );
+
     });
+
+
 
 Route::prefix('admin')
     ->middleware([
