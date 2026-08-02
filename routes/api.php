@@ -7,7 +7,7 @@ use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\ProjectController;
 Route::prefix('auth')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register'])
         ->middleware('throttle:5,1');
@@ -53,6 +53,17 @@ Route::prefix('workspaces')
             WorkspaceController::class,
             'store',
         ]);
+
+        Route::get('/{workspace}/projects', [
+            ProjectController::class,
+            'index',
+        ]);
+
+        Route::post('/{workspace}/projects', [
+            ProjectController::class,
+            'store',
+        ]);
+
     });
 
 Route::prefix('admin')

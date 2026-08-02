@@ -21,6 +21,18 @@ enum WorkspaceRole: string
         ], true);
     }
 
+
+    /**
+     * Check whether the role can create and manage projects.
+     */
+    public function canManageProjects(): bool
+    {
+        return in_array($this, [
+            self::Owner,
+            self::Admin,
+        ], true);
+    }
+
     /**
      * Check whether the role owns the workspace.
      */

@@ -89,6 +89,17 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+     /**
+      * Get projects created by the user.
+      */
+     public function createdProjects(): HasMany
+     {
+         return $this->hasMany(
+             Project::class,
+             'created_by'
+         );
+     }
+
     protected function casts(): array
     {
         return [

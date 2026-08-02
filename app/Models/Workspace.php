@@ -56,4 +56,12 @@ class Workspace extends Model
             ])
             ->withTimestamps();
     }
+
+    /**
+     * Get projects belonging to the workspace.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
 }
