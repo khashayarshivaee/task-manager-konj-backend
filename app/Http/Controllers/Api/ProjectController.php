@@ -189,6 +189,31 @@ class ProjectController extends Controller
         ]);
     }
 
+
+    /**
+     * Delete a project.
+     */
+    public function destroy(
+        Workspace $workspace,
+        Project $project
+    ): JsonResponse {
+        $this->ensureProjectBelongsToWorkspace(
+            $workspace,
+            $project
+        );
+
+        Gate::authorize(
+            'manageProjects',
+            $workspace
+        );
+
+        $project->delete();
+
+        return response()->json([
+            'message' => 'Project deleted successfully.',
+        ]);
+    }
+
     /**
      * Ensure that the nested project belongs to the workspace.
      */

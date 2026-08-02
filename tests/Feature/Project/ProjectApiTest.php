@@ -55,6 +55,139 @@ class ProjectApiTest extends TestCase
             );
     }
 
+    public function test_owner_can_delete_project(): void
+    {
+        $owner = User::factory()->create();
+        $workspace = $this->createWorkspace($owner);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Project To Delete',
+            'slug' => 'project-to-delete',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->deleteJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Project deleted successfully.'
+            );
+
+        $this->assertDatabaseMissing('projects', [
+            'id' => $project->id,
+        ]);
+    }
+
+    public function test_admin_can_delete_project(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->create();
+
+        $workspace = $this->createWorkspace($owner);
+
+        $workspace->memberships()->create([
+            'user_id' => $admin->id,
+            'role' => WorkspaceRole::Admin,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Admin Deletable Project',
+            'slug' => 'admin-deletable-project',
+            'status' => ProjectStatus::Active,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}"
+        )->assertOk();
+
+        $this->assertDatabaseMissing('projects', [
+            'id' => $project->id,
+        ]);
+    }
+
+    public function test_member_cannot_delete_project(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace = $this->createWorkspace($owner);
+
+        $workspace->memberships()->create([
+            'user_id' => $member->id,
+            'role' => WorkspaceRole::Member,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Protected Project',
+            'slug' => 'protected-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($member);
+
+        $this->deleteJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}"
+        )->assertForbidden();
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+        ]);
+    }
+
+    public function test_project_cannot_be_deleted_through_another_workspace(): void
+    {
+        $firstOwner = User::factory()->create();
+        $secondOwner = User::factory()->create();
+
+        $firstWorkspace = $this->createWorkspace(
+            $firstOwner
+        );
+
+        $secondWorkspace = Workspace::query()->create([
+            'owner_id' => $secondOwner->id,
+            'name' => 'Second Workspace',
+            'slug' => 'second-workspace-delete',
+        ]);
+
+        $secondWorkspace->memberships()->create([
+            'user_id' => $secondOwner->id,
+            'role' => WorkspaceRole::Owner,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $secondWorkspace->id,
+            'created_by' => $secondOwner->id,
+            'name' => 'Second Workspace Project',
+            'slug' => 'second-workspace-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($firstOwner);
+
+        $this->deleteJson(
+            "/api/workspaces/{$firstWorkspace->id}/projects/{$project->id}"
+        )->assertNotFound();
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+        ]);
+    }
+
     public function test_outsider_cannot_view_project(): void
     {
         $owner = User::factory()->create();

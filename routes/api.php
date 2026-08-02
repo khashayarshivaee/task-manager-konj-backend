@@ -74,6 +74,11 @@ Route::prefix('workspaces')
             'update',
         ]);
 
+        Route::delete('/{workspace}/projects/{project}', [
+            ProjectController::class,
+            'destroy',
+        ]);
+
     });
 
 Route::prefix('admin')
