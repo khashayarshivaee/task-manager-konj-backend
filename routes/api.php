@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,18 @@ Route::prefix('profile')
         Route::put('/password', [
             ProfileController::class,
             'updatePassword',
+        ]);
+    });
+
+Route::prefix('workspaces')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+    ])
+    ->group(function (): void {
+        Route::post('/', [
+            WorkspaceController::class,
+            'store',
         ]);
     });
 
