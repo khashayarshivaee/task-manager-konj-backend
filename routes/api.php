@@ -64,6 +64,16 @@ Route::prefix('workspaces')
             'store',
         ]);
 
+        Route::get('/{workspace}/projects/{project}', [
+            ProjectController::class,
+            'show',
+        ]);
+
+        Route::put('/{workspace}/projects/{project}', [
+            ProjectController::class,
+            'update',
+        ]);
+
     });
 
 Route::prefix('admin')

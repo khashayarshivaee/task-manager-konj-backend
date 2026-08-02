@@ -17,6 +17,197 @@ class ProjectApiTest extends TestCase
 {
     use RefreshDatabase;
 
+
+    public function test_workspace_member_can_view_project(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace = $this->createWorkspace($owner);
+
+        $workspace->memberships()->create([
+            'user_id' => $member->id,
+            'role' => WorkspaceRole::Member,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Visible Project',
+            'slug' => 'visible-project',
+            'status' => ProjectStatus::Active,
+        ]);
+
+        Sanctum::actingAs($member);
+
+        $this->getJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.project.id',
+                $project->id
+            )
+            ->assertJsonPath(
+                'data.project.name',
+                'Visible Project'
+            );
+    }
+
+    public function test_outsider_cannot_view_project(): void
+    {
+        $owner = User::factory()->create();
+        $outsider = User::factory()->create();
+
+        $workspace = $this->createWorkspace($owner);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Private Project',
+            'slug' => 'private-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($outsider);
+
+        $this->getJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}"
+        )->assertForbidden();
+    }
+
+    public function test_owner_can_update_project(): void
+    {
+        $owner = User::factory()->create();
+        $workspace = $this->createWorkspace($owner);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Old Project',
+            'slug' => 'old-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}",
+            [
+                'name' => 'Updated Project',
+                'description' => 'Updated project description.',
+                'status' => ProjectStatus::Active->value,
+                'color' => '#ff6b00',
+                'starts_at' => '2026-08-02',
+                'due_at' => '2026-09-02',
+            ]
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Project updated successfully.'
+            )
+            ->assertJsonPath(
+                'data.project.name',
+                'Updated Project'
+            )
+            ->assertJsonPath(
+                'data.project.slug',
+                'updated-project'
+            )
+            ->assertJsonPath(
+                'data.project.status',
+                ProjectStatus::Active->value
+            );
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+            'name' => 'Updated Project',
+            'slug' => 'updated-project',
+            'status' => ProjectStatus::Active->value,
+        ]);
+    }
+
+    public function test_member_cannot_update_project(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace = $this->createWorkspace($owner);
+
+        $workspace->memberships()->create([
+            'user_id' => $member->id,
+            'role' => WorkspaceRole::Member,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $workspace->id,
+            'created_by' => $owner->id,
+            'name' => 'Protected Project',
+            'slug' => 'protected-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($member);
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}",
+            [
+                'name' => 'Changed Project',
+                'description' => null,
+                'status' => ProjectStatus::Active->value,
+                'color' => null,
+                'starts_at' => null,
+                'due_at' => null,
+            ]
+        )->assertForbidden();
+
+        $this->assertDatabaseHas('projects', [
+            'id' => $project->id,
+            'name' => 'Protected Project',
+        ]);
+    }
+
+    public function test_project_cannot_be_accessed_through_another_workspace(): void
+    {
+        $firstOwner = User::factory()->create();
+        $secondOwner = User::factory()->create();
+
+        $firstWorkspace = $this->createWorkspace(
+            $firstOwner
+        );
+
+        $secondWorkspace = Workspace::query()->create([
+            'owner_id' => $secondOwner->id,
+            'name' => 'Second Workspace',
+            'slug' => 'second-workspace',
+        ]);
+
+        $secondWorkspace->memberships()->create([
+            'user_id' => $secondOwner->id,
+            'role' => WorkspaceRole::Owner,
+            'joined_at' => now(),
+        ]);
+
+        $project = Project::query()->create([
+            'workspace_id' => $secondWorkspace->id,
+            'created_by' => $secondOwner->id,
+            'name' => 'Second Project',
+            'slug' => 'second-project',
+            'status' => ProjectStatus::Planning,
+        ]);
+
+        Sanctum::actingAs($firstOwner);
+
+        $this->getJson(
+            "/api/workspaces/{$firstWorkspace->id}/projects/{$project->id}"
+        )->assertNotFound();
+    }
+
+
+
     public function test_workspace_member_can_list_projects(): void
     {
         $owner = User::factory()->create();
