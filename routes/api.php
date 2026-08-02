@@ -1,5 +1,5 @@
 <?php
-
+use App\Http\Controllers\Api\TaskAttachmentController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
@@ -116,6 +116,38 @@ Route::prefix('workspaces')
             '/{workspace}/projects/{project}/tasks/{task}',
             [
                 TaskController::class,
+                'destroy',
+            ]
+        );
+
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/{task}/attachments',
+            [
+                TaskAttachmentController::class,
+                'index',
+            ]
+        );
+
+        Route::post(
+            '/{workspace}/projects/{project}/tasks/{task}/attachments',
+            [
+                TaskAttachmentController::class,
+                'store',
+            ]
+        );
+
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/{task}/attachments/{attachment}/file',
+            [
+                TaskAttachmentController::class,
+                'file',
+            ]
+        );
+
+        Route::delete(
+            '/{workspace}/projects/{project}/tasks/{task}/attachments/{attachment}',
+            [
+                TaskAttachmentController::class,
                 'destroy',
             ]
         );

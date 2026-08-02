@@ -9,7 +9,7 @@ use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'project_id',
     'created_by',
@@ -59,5 +59,14 @@ class Task extends Model
             'completed_at' => 'datetime',
             'position' => 'integer',
         ];
+    }
+    /**
+     * Get images attached to the task.
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(
+            TaskAttachment::class
+        );
     }
 }
