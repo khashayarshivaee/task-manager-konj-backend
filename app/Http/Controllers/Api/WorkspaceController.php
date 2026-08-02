@@ -10,12 +10,33 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Http\Request;
 class WorkspaceController extends Controller
 {
     /**
      * Create a workspace and register the current user as its owner.
      */
+     /**
+      * Get all workspaces available to the current user.
+      */
+     public function index(Request $request): JsonResponse
+     {
+         $workspaces = $request->user()
+             ->workspaces()
+             ->with([
+                 'owner:id,name,email',
+             ])
+             ->latest('workspaces.created_at')
+             ->get();
+
+         return response()->json([
+             'data' => [
+                 'workspaces' => $workspaces,
+             ],
+         ]);
+     }
+
+
     public function store(
         StoreWorkspaceRequest $request
     ): JsonResponse {

@@ -44,6 +44,11 @@ Route::prefix('workspaces')
         EnsureUserIsActive::class,
     ])
     ->group(function (): void {
+
+    Route::get('/', [
+        WorkspaceController::class,
+        'index',
+    ]);
         Route::post('/', [
             WorkspaceController::class,
             'store',
