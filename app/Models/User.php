@@ -114,13 +114,36 @@ class User extends Authenticatable
      /**
       * Get tasks assigned to the user.
       */
-     public function assignedTasks(): HasMany
-     {
-         return $this->hasMany(
-             Task::class,
-             'assigned_to'
-         );
-     }
+    /**
+     * Get tasks assigned to the user.
+     */
+    public function assignedTasks(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Task::class,
+            'task_assignees'
+        )
+            ->withPivot([
+                'id',
+                'assigned_by',
+            ])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get tasks watched by the user.
+     */
+    public function watchedTasks(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Task::class,
+            'task_watchers'
+        )
+            ->withPivot([
+                'id',
+            ])
+            ->withTimestamps();
+    }
 
     protected function casts(): array
     {

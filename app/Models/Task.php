@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -28,7 +29,9 @@ class Task extends Model
 {
     public function project(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(
+            Project::class
+        );
     }
 
     public function creator(): BelongsTo
@@ -39,6 +42,12 @@ class Task extends Model
         );
     }
 
+    /**
+     * Legacy single-assignee relation.
+     *
+     * This relation remains temporarily while
+     * the API and frontend migrate to assignees().
+     */
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(
@@ -47,10 +56,51 @@ class Task extends Model
         );
     }
 
+    /**
+     * Get all users assigned to the task.
+     */
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'task_assignees'
+        )
+            ->withPivot([
+                'id',
+                'assigned_by',
+            ])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get users watching the task.
+     */
+    public function watchers(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'task_watchers'
+        )
+            ->withPivot([
+                'id',
+            ])
+            ->withTimestamps();
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(
-            TaskComment::class,
+            TaskComment::class
+        );
+    }
+
+    /**
+     * Get images attached to the task.
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(
+            TaskAttachment::class
         );
     }
 
@@ -67,14 +117,5 @@ class Task extends Model
             'completed_at' => 'datetime',
             'position' => 'integer',
         ];
-    }
-    /**
-     * Get images attached to the task.
-     */
-    public function attachments(): HasMany
-    {
-        return $this->hasMany(
-            TaskAttachment::class
-        );
     }
 }

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
-
+use Illuminate\Support\Facades\DB;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
@@ -39,8 +39,10 @@ class TaskController extends Controller
         $tasks = $project
             ->tasks()
             ->with([
-                'creator:id,name,email',
-                'assignee:id,name,email',
+         'creator:id,name,email,avatar_path',
+         'assignee:id,name,email,avatar_path',
+             'assignees:id,name,email,avatar_path',
+
             ])
             ->orderBy('status')
             ->orderBy('position')
@@ -54,81 +56,124 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Create a task inside a project.
-     */
-    public function store(
-        StoreTaskRequest $request,
-        Workspace $workspace,
-        Project $project
-    ): JsonResponse {
-        $this->ensureProjectBelongsToWorkspace(
-            $workspace,
-            $project
-        );
+   /**
+    * Create a task inside a project.
+    */
+   public function store(
+       StoreTaskRequest $request,
+       Workspace $workspace,
+       Project $project
+   ): JsonResponse {
+       $this->ensureProjectBelongsToWorkspace(
+           $workspace,
+           $project
+       );
 
-        Gate::authorize(
-            'view',
-            $workspace
-        );
+       Gate::authorize(
+           'view',
+           $workspace
+       );
 
-        $validated = $request->validated();
+       $validated = $request->validated();
 
-        $status = TaskStatus::from(
-            $validated['status']
-            ?? TaskStatus::Backlog->value
-        );
+       $status = TaskStatus::from(
+           $validated['status']
+           ?? TaskStatus::Backlog->value
+       );
 
-        $task = $project
-            ->tasks()
-            ->create([
-                'created_by' => $request->user()->id,
+       $assigneeIds =
+           $this->normalizeAssigneeIds(
+               $validated
+           );
 
-                'assigned_to' =>
-                    $validated['assigned_to'] ?? null,
+       $task = DB::transaction(
+           function () use (
+               $request,
+               $project,
+               $validated,
+               $status,
+               $assigneeIds
+           ): Task {
+               $task = $project
+                   ->tasks()
+                   ->create([
+                       'created_by' =>
+                           $request->user()->id,
 
-                'title' => $validated['title'],
+                       /*
+                        * Temporary legacy field.
+                        *
+                        * It remains until the frontend
+                        * fully migrates to assignees.
+                        */
+                       'assigned_to' =>
+                           $assigneeIds[0] ?? null,
 
-                'description' =>
-                    $validated['description'] ?? null,
+                       'title' =>
+                           $validated['title'],
 
-                'status' => $status,
+                       'description' =>
+                           $validated[
+                               'description'
+                           ] ?? null,
 
-                'priority' =>
-                    $validated['priority']
-                    ?? TaskPriority::Medium,
+                       'status' => $status,
 
-                'starts_at' =>
-                    $validated['starts_at'] ?? null,
+                       'priority' =>
+                           $validated['priority']
+                           ?? TaskPriority::Medium,
 
-                'due_at' =>
-                    $validated['due_at'] ?? null,
+                       'starts_at' =>
+                           $validated[
+                               'starts_at'
+                           ] ?? null,
 
-                'completed_at' =>
-                    $status->isCompleted()
-                        ? now()
-                        : null,
+                       'due_at' =>
+                           $validated[
+                               'due_at'
+                           ] ?? null,
 
-                'position' =>
-                    $this->nextPosition(
-                        $project,
-                        $status
-                    ),
-            ]);
+                       'completed_at' =>
+                           $status->isCompleted()
+                               ? now()
+                               : null,
 
-        $task->load([
-            'creator:id,name,email',
-            'assignee:id,name,email',
-        ]);
+                       'position' =>
+                           $this->nextPosition(
+                               $project,
+                               $status
+                           ),
+                   ]);
 
-        return response()->json([
-            'message' => 'Task created successfully.',
+               $this->syncTaskParticipants(
+                   $task,
+                   $assigneeIds,
+                   $request->user()
+               );
 
-            'data' => [
-                'task' => $task,
-            ],
-        ], Response::HTTP_CREATED);
-    }
+               return $task;
+           }
+       );
+
+       $task->load([
+           'creator:id,name,email,avatar_path',
+
+           'assignee:id,name,email,avatar_path',
+
+           'assignees:id,name,email,avatar_path',
+
+           'watchers:id,name,email,avatar_path',
+       ]);
+
+       return response()->json([
+           'message' =>
+               'Task created successfully.',
+
+           'data' => [
+               'task' => $task,
+           ],
+       ], Response::HTTP_CREATED);
+   }
 
     /**
      * Get a single task.
@@ -153,10 +198,15 @@ class TaskController extends Controller
             $workspace
         );
 
-        $task->load([
-            'creator:id,name,email',
-            'assignee:id,name,email',
-        ]);
+       $task->load([
+           'creator:id,name,email,avatar_path',
+
+           'assignee:id,name,email,avatar_path',
+
+           'assignees:id,name,email,avatar_path',
+
+           'watchers:id,name,email,avatar_path',
+       ]);
 
         return response()->json([
             'data' => [
@@ -165,98 +215,138 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Update a task.
-     */
-    public function update(
-        UpdateTaskRequest $request,
-        Workspace $workspace,
-        Project $project,
-        Task $task
-    ): JsonResponse {
-        $this->ensureProjectBelongsToWorkspace(
-            $workspace,
-            $project
-        );
+   /**
+    * Update a task.
+    */
+   public function update(
+       UpdateTaskRequest $request,
+       Workspace $workspace,
+       Project $project,
+       Task $task
+   ): JsonResponse {
+       $this->ensureProjectBelongsToWorkspace(
+           $workspace,
+           $project
+       );
 
-        $this->ensureTaskBelongsToProject(
-            $project,
-            $task
-        );
+       $this->ensureTaskBelongsToProject(
+           $project,
+           $task
+       );
 
-        Gate::authorize(
-            'view',
-            $workspace
-        );
+       Gate::authorize(
+           'view',
+           $workspace
+       );
 
-        $validated = $request->validated();
+       $validated = $request->validated();
 
-        $status = TaskStatus::from(
-            $validated['status']
-        );
+       $status = TaskStatus::from(
+           $validated['status']
+       );
 
-        $position = $task->position;
+       $assigneeIds =
+           $this->normalizeAssigneeIds(
+               $validated
+           );
 
-        if ($task->status !== $status) {
-            $position = $this->nextPosition(
-                $project,
-                $status
-            );
-        }
+       $position = $task->position;
 
-        $completedAt = $task->completed_at;
+       if ($task->status !== $status) {
+           $position = $this->nextPosition(
+               $project,
+               $status
+           );
+       }
 
-        if (
-            $status->isCompleted() &&
-            !$task->status->isCompleted()
-        ) {
-            $completedAt = now();
-        }
+       $completedAt = $task->completed_at;
 
-        if (!$status->isCompleted()) {
-            $completedAt = null;
-        }
+       if (
+           $status->isCompleted() &&
+           !$task->status->isCompleted()
+       ) {
+           $completedAt = now();
+       }
 
-        $task->update([
-            'assigned_to' =>
-                $validated['assigned_to'] ?? null,
+       if (!$status->isCompleted()) {
+           $completedAt = null;
+       }
 
-            'title' => $validated['title'],
+       DB::transaction(
+           function () use (
+               $request,
+               $task,
+               $validated,
+               $status,
+               $assigneeIds,
+               $completedAt,
+               $position
+           ): void {
+               $task->update([
+                   /*
+                    * Temporary legacy field.
+                    */
+                   'assigned_to' =>
+                       $assigneeIds[0] ?? null,
 
-            'description' =>
-                $validated['description'] ?? null,
+                   'title' =>
+                       $validated['title'],
 
-            'status' => $status,
+                   'description' =>
+                       $validated[
+                           'description'
+                       ] ?? null,
 
-            'priority' =>
-                TaskPriority::from(
-                    $validated['priority']
-                ),
+                   'status' => $status,
 
-            'starts_at' =>
-                $validated['starts_at'] ?? null,
+                   'priority' =>
+                       TaskPriority::from(
+                           $validated['priority']
+                       ),
 
-            'due_at' =>
-                $validated['due_at'] ?? null,
+                   'starts_at' =>
+                       $validated[
+                           'starts_at'
+                       ] ?? null,
 
-            'completed_at' => $completedAt,
+                   'due_at' =>
+                       $validated[
+                           'due_at'
+                       ] ?? null,
 
-            'position' => $position,
-        ]);
+                   'completed_at' =>
+                       $completedAt,
 
-        $task->load([
-            'creator:id,name,email',
-            'assignee:id,name,email',
-        ]);
+                   'position' => $position,
+               ]);
 
-        return response()->json([
-            'message' => 'Task updated successfully.',
+               $this->syncTaskParticipants(
+                   $task,
+                   $assigneeIds,
+                   $request->user()
+               );
+           }
+       );
 
-            'data' => [
-                'task' => $task,
-            ],
-        ]);
-    }
+       $task->load([
+           'creator:id,name,email,avatar_path',
+
+           'assignee:id,name,email,avatar_path',
+
+           'assignees:id,name,email,avatar_path',
+
+           'watchers:id,name,email,avatar_path',
+       ]);
+
+       return response()->json([
+           'message' =>
+               'Task updated successfully.',
+
+           'data' => [
+               'task' => $task,
+           ],
+       ]);
+   }
 
     /**
      * Delete a task.
@@ -313,6 +403,78 @@ class TaskController extends Controller
         }
 
         abort(Response::HTTP_FORBIDDEN);
+    }
+
+    /**
+     * @param array<string, mixed> $validated
+     *
+     * @return array<int, int>
+     */
+    private function normalizeAssigneeIds(
+        array $validated
+    ): array {
+        return collect(
+            $validated['assignee_ids'] ?? []
+        )
+            ->map(
+                fn ($userId): int =>
+                    (int) $userId
+            )
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Synchronize task assignees and automatic
+     * watchers.
+     *
+     * Removed assignees remain watchers until
+     * they explicitly stop watching the task.
+     *
+     * @param array<int, int> $assigneeIds
+     */
+    private function syncTaskParticipants(
+        Task $task,
+        array $assigneeIds,
+        User $actor
+    ): void {
+        $assigneeSyncData = collect(
+            $assigneeIds
+        )
+            ->mapWithKeys(
+                fn (int $userId): array => [
+                    $userId => [
+                        'assigned_by' =>
+                            $actor->id,
+                    ],
+                ]
+            )
+            ->all();
+
+        $task
+            ->assignees()
+            ->sync($assigneeSyncData);
+
+        $watcherIds = collect([
+            $task->created_by,
+            $actor->id,
+            ...$assigneeIds,
+        ])
+            ->filter()
+            ->map(
+                fn ($userId): int =>
+                    (int) $userId
+            )
+            ->unique()
+            ->values()
+            ->all();
+
+        $task
+            ->watchers()
+            ->syncWithoutDetaching(
+                $watcherIds
+            );
     }
 
     private function nextPosition(

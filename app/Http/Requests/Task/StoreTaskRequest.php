@@ -20,33 +20,69 @@ class StoreTaskRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $description = trim(
-            (string) $this->input('description', '')
+            (string) $this->input(
+                'description',
+                ''
+            )
         );
 
         $startsAt = trim(
-            (string) $this->input('starts_at', '')
+            (string) $this->input(
+                'starts_at',
+                ''
+            )
         );
 
         $dueAt = trim(
-            (string) $this->input('due_at', '')
+            (string) $this->input(
+                'due_at',
+                ''
+            )
         );
+
+        $input = $this->all();
+
+        if (
+            array_key_exists(
+                'assignee_ids',
+                $input
+            )
+        ) {
+            $assigneeIds =
+                $input['assignee_ids'];
+        } else {
+            $legacyAssigneeId =
+                $this->input('assigned_to');
+
+            $assigneeIds = (
+                $legacyAssigneeId !== null &&
+                $legacyAssigneeId !== ''
+            )
+                ? [$legacyAssigneeId]
+                : [];
+        }
 
         $this->merge([
             'title' => trim(
                 (string) $this->input('title')
             ),
 
-            'description' => $description !== ''
-                ? $description
-                : null,
+            'description' =>
+                $description !== ''
+                    ? $description
+                    : null,
 
-            'starts_at' => $startsAt !== ''
-                ? $startsAt
-                : null,
+            'assignee_ids' => $assigneeIds,
 
-            'due_at' => $dueAt !== ''
-                ? $dueAt
-                : null,
+            'starts_at' =>
+                $startsAt !== ''
+                    ? $startsAt
+                    : null,
+
+            'due_at' =>
+                $dueAt !== ''
+                    ? $dueAt
+                    : null,
         ]);
     }
 
@@ -56,7 +92,9 @@ class StoreTaskRequest extends FormRequest
     public function rules(): array
     {
         /** @var Workspace|null $workspace */
-        $workspace = $this->route('workspace');
+        $workspace = $this->route(
+            'workspace'
+        );
 
         return [
             'title' => [
@@ -74,26 +112,47 @@ class StoreTaskRequest extends FormRequest
 
             'status' => [
                 'nullable',
-                Rule::enum(TaskStatus::class),
+                Rule::enum(
+                    TaskStatus::class
+                ),
             ],
 
             'priority' => [
                 'nullable',
-                Rule::enum(TaskPriority::class),
+                Rule::enum(
+                    TaskPriority::class
+                ),
             ],
 
-            'assigned_to' => [
-                'nullable',
+            'assignee_ids' => [
+                'array',
+                'max:50',
+            ],
+
+            'assignee_ids.*' => [
                 'integer',
+                'distinct',
 
                 Rule::exists(
                     'workspace_memberships',
                     'user_id'
                 )->where(
-                    fn ($query) => $query->where(
-                        'workspace_id',
-                        $workspace?->id
-                    )
+                    fn ($query) =>
+                        $query->where(
+                            'workspace_id',
+                            $workspace?->id
+                        )
+                ),
+
+                Rule::exists(
+                    'users',
+                    'id'
+                )->where(
+                    fn ($query) =>
+                        $query->where(
+                            'is_active',
+                            true
+                        )
                 ),
             ],
 
@@ -107,7 +166,9 @@ class StoreTaskRequest extends FormRequest
                 'date',
 
                 Rule::when(
-                    $this->filled('starts_at'),
+                    $this->filled(
+                        'starts_at'
+                    ),
                     [
                         'after_or_equal:starts_at',
                     ]
