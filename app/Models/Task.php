@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+
 #[Fillable([
     'project_id',
     'created_by',
@@ -43,6 +44,13 @@ class Task extends Model
         return $this->belongsTo(
             User::class,
             'assigned_to'
+        );
+    }
+
+    public function comments(): HasMany
+    {
+        return $this->hasMany(
+            TaskComment::class,
         );
     }
 
