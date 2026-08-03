@@ -99,6 +99,22 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::put(
+            '/{workspace}',
+            [
+                WorkspaceController::class,
+                'update',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}',
+            [
+                WorkspaceController::class,
+                'destroy',
+            ],
+        );
+
         /*
         |--------------------------------------------------------------------------
         | Projects

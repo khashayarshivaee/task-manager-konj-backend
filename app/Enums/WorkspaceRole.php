@@ -11,6 +11,17 @@ enum WorkspaceRole: string
     case Member = 'member';
 
     /**
+     * Check whether the role can update workspace settings.
+     */
+    public function canManageWorkspace(): bool
+    {
+        return in_array($this, [
+            self::Owner,
+            self::Admin,
+        ], true);
+    }
+
+    /**
      * Check whether the role can manage workspace members.
      */
     public function canManageMembers(): bool
@@ -20,7 +31,6 @@ enum WorkspaceRole: string
             self::Admin,
         ], true);
     }
-
 
     /**
      * Check whether the role can create and manage projects.

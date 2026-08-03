@@ -23,6 +23,33 @@ class WorkspacePolicy
     }
 
     /**
+     * Determine whether the user can update workspace settings.
+     */
+    public function update(
+        User $user,
+        Workspace $workspace
+    ): bool {
+        $membership = $workspace
+            ->memberships()
+            ->where('user_id', $user->id)
+            ->first();
+
+        return $membership
+            ?->role
+            ->canManageWorkspace() ?? false;
+    }
+
+    /**
+     * Determine whether the user can permanently delete the workspace.
+     */
+    public function delete(
+        User $user,
+        Workspace $workspace
+    ): bool {
+        return $workspace->owner_id === $user->id;
+    }
+
+    /**
      * Determine whether the user can create or manage projects.
      */
     public function manageProjects(
