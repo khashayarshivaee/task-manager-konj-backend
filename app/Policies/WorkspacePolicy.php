@@ -23,6 +23,23 @@ class WorkspacePolicy
     }
 
     /**
+     * Determine whether the user can manage workspace members.
+     */
+    public function manageMembers(
+        User $user,
+        Workspace $workspace
+    ): bool {
+        $membership = $workspace
+            ->memberships()
+            ->where('user_id', $user->id)
+            ->first();
+
+        return $membership
+            ?->role
+            ->canManageMembers() ?? false;
+    }
+
+    /**
      * Determine whether the user can update workspace settings.
      */
     public function update(

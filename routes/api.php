@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-
+use App\Http\Controllers\Api\WorkspaceMemberController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
@@ -111,6 +111,44 @@ Route::prefix('workspaces')
             '/{workspace}',
             [
                 WorkspaceController::class,
+                'destroy',
+            ],
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workspace Members
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/{workspace}/members',
+            [
+                WorkspaceMemberController::class,
+                'index',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/members',
+            [
+                WorkspaceMemberController::class,
+                'store',
+            ],
+        );
+
+        Route::put(
+            '/{workspace}/members/{membership}',
+            [
+                WorkspaceMemberController::class,
+                'update',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/members/{membership}',
+            [
+                WorkspaceMemberController::class,
                 'destroy',
             ],
         );
