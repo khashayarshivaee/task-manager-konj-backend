@@ -17,44 +17,145 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 use App\Http\Requests\Task\UpdateTaskStatusRequest;
+
+use App\Http\Requests\Task\ListProjectTasksRequest;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 class TaskController extends Controller
 {
-    /**
-     * Get tasks belonging to a project.
-     */
-    public function index(
-        Workspace $workspace,
-        Project $project
-    ): JsonResponse {
-        $this->ensureProjectBelongsToWorkspace(
-            $workspace,
-            $project
-        );
+ /**
+  * Get paginated tasks belonging to a project.
+  */
+ public function index(
+     ListProjectTasksRequest $request,
+     Workspace $workspace,
+     Project $project
+ ): JsonResponse {
+     $this->ensureProjectBelongsToWorkspace(
+         $workspace,
+         $project
+     );
 
-        Gate::authorize(
-            'view',
-            $workspace
-        );
+     Gate::authorize(
+         'view',
+         $workspace
+     );
 
-        $tasks = $project
-            ->tasks()
-            ->with([
-         'creator:id,name,email,avatar_path',
-         'assignee:id,name,email,avatar_path',
-             'assignees:id,name,email,avatar_path',
+     $validated = $request->validated();
 
-            ])
-            ->orderBy('status')
-            ->orderBy('position')
-            ->latest('id')
-            ->get();
+  $query = $project
+      ->tasks()
+      ->getQuery()
+      ->with([
+          'creator:id,name,email,avatar_path',
 
-        return response()->json([
-            'data' => [
-                'tasks' => $tasks,
-            ],
-        ]);
-    }
+          'assignee:id,name,email,avatar_path',
+
+          'assignees:id,name,email,avatar_path',
+      ]);
+
+     if (!empty($validated['search'])) {
+         $search =
+             (string) $validated['search'];
+
+         $query->where(
+             function (
+                 Builder $taskQuery
+             ) use ($search): void {
+                 $taskQuery
+                     ->where(
+                         'title',
+                         'like',
+                         "%{$search}%"
+                     )
+                     ->orWhere(
+                         'description',
+                         'like',
+                         "%{$search}%"
+                     );
+             }
+         );
+     }
+
+     if (!empty($validated['status'])) {
+         $query->where(
+             'status',
+             $validated['status']
+         );
+     }
+
+     if (!empty($validated['priority'])) {
+         $query->where(
+             'priority',
+             $validated['priority']
+         );
+     }
+
+     if (!empty($validated['assignee'])) {
+         $assigneeId =
+             (int) $validated['assignee'];
+
+         $query->whereHas(
+             'assignees',
+             function (
+                 Builder $assigneeQuery
+             ) use ($assigneeId): void {
+                 $assigneeQuery->where(
+                     'users.id',
+                     $assigneeId
+                 );
+             }
+         );
+     }
+
+     $this->applyTaskDueFilter(
+         $query,
+         $validated['due'] ?? null
+     );
+
+     $this->applyTaskListSorting(
+         $query,
+         (string) $validated['sort'],
+         (string) $validated['direction']
+     );
+
+     $tasks = $query->paginate(
+         (int) $validated['per_page'],
+         ['*'],
+         'page',
+         (int) $validated['page']
+     );
+
+     return response()->json([
+         'data' => [
+             'tasks' => $tasks->items(),
+         ],
+
+         'meta' => [
+             'current_page' =>
+                 $tasks->currentPage(),
+
+             'per_page' =>
+                 $tasks->perPage(),
+
+             'total' =>
+                 $tasks->total(),
+
+             'last_page' =>
+                 $tasks->lastPage(),
+
+             'from' =>
+                 $tasks->firstItem(),
+
+             'to' =>
+                 $tasks->lastItem(),
+
+             'has_more_pages' =>
+                 $tasks->hasMorePages(),
+         ],
+     ]);
+ }
 
    /**
     * Create a task inside a project.
@@ -480,6 +581,167 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Task deleted successfully.',
         ]);
+    }
+
+    private function applyTaskDueFilter(
+        Builder $query,
+        ?string $due
+    ): void {
+        if ($due === null) {
+            return;
+        }
+
+        $today = CarbonImmutable::today();
+
+        if ($due === 'this_week') {
+            $start = $today->startOfWeek(
+                CarbonInterface::MONDAY
+            );
+
+            $end = $today->endOfWeek(
+                CarbonInterface::SUNDAY
+            );
+
+            $query->whereBetween(
+                'due_at',
+                [
+                    $start->toDateString(),
+                    $end->toDateString(),
+                ]
+            );
+
+            return;
+        }
+
+        if ($due === 'this_month') {
+            $query->whereBetween(
+                'due_at',
+                [
+                    $today
+                        ->startOfMonth()
+                        ->toDateString(),
+
+                    $today
+                        ->endOfMonth()
+                        ->toDateString(),
+                ]
+            );
+
+            return;
+        }
+
+        if ($due === 'this_year') {
+            $query->whereBetween(
+                'due_at',
+                [
+                    $today
+                        ->startOfYear()
+                        ->toDateString(),
+
+                    $today
+                        ->endOfYear()
+                        ->toDateString(),
+                ]
+            );
+
+            return;
+        }
+
+        if ($due === 'overdue') {
+            $query
+                ->whereNotNull('due_at')
+                ->whereDate(
+                    'due_at',
+                    '<',
+                    $today->toDateString()
+                )
+                ->where(
+                    'status',
+                    '!=',
+                    TaskStatus::Completed->value
+                );
+
+            return;
+        }
+
+        if ($due === 'no_due_date') {
+            $query->whereNull('due_at');
+        }
+    }
+
+    private function applyTaskListSorting(
+        Builder $query,
+        string $sort,
+        string $direction
+    ): void {
+        $statusOrder = <<<'SQL'
+    CASE status
+        WHEN 'backlog' THEN 0
+        WHEN 'todo' THEN 1
+        WHEN 'in_progress' THEN 2
+        WHEN 'in_review' THEN 3
+        WHEN 'completed' THEN 4
+        ELSE 5
+    END
+    SQL;
+
+        $priorityOrder = <<<'SQL'
+    CASE priority
+        WHEN 'low' THEN 0
+        WHEN 'medium' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'urgent' THEN 3
+        ELSE 4
+    END
+    SQL;
+
+        if (
+            $sort === 'workflow' ||
+            $sort === 'status'
+        ) {
+            $query
+                ->orderByRaw(
+                    "{$statusOrder} {$direction}"
+                )
+                ->orderBy(
+                    'position',
+                    $direction
+                )
+                ->orderByDesc('id');
+
+            return;
+        }
+
+        if ($sort === 'priority') {
+            $query
+                ->orderByRaw(
+                    "{$priorityOrder} {$direction}"
+                )
+                ->orderByDesc('id');
+
+            return;
+        }
+
+        if ($sort === 'due_at') {
+            $query
+                ->orderByRaw(
+                    'due_at IS NULL ASC'
+                )
+                ->orderBy(
+                    'due_at',
+                    $direction
+                )
+                ->orderByDesc('id');
+
+            return;
+        }
+
+        $query
+            ->orderBy(
+                $sort,
+                $direction
+            )
+            ->orderByDesc('id');
     }
 
     private function authorizeTaskDeletion(

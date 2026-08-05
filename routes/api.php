@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Http\Controllers\Api\ProjectTaskSummaryController;
 use App\Http\Controllers\Api\WorkspaceMemberController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
@@ -16,6 +17,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
+use App\Http\Controllers\Api\ProjectTaskCalendarController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -226,6 +228,16 @@ Route::prefix('workspaces')
                 TaskController::class,
                 'index',
             ],
+        );
+
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/calendar',
+            ProjectTaskCalendarController::class,
+        );
+
+        Route::get(
+            '/{workspace}/projects/{project}/task-summary',
+            ProjectTaskSummaryController::class,
         );
 
         Route::post(
