@@ -252,6 +252,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::patch(
+            '/{workspace}/projects/{project}/tasks/{task}/status',
+            [
+                TaskController::class,
+                'updateStatus',
+            ],
+        );
+
         Route::delete(
             '/{workspace}/projects/{project}/tasks/{task}',
             [

@@ -16,7 +16,7 @@ use App\Models\Workspace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
-
+use App\Http\Requests\Task\UpdateTaskStatusRequest;
 class TaskController extends Controller
 {
     /**
@@ -341,6 +341,104 @@ class TaskController extends Controller
        return response()->json([
            'message' =>
                'Task updated successfully.',
+
+           'data' => [
+               'task' => $task,
+           ],
+       ]);
+   }
+
+   /**
+    * Update only the task status.
+    */
+   public function updateStatus(
+       UpdateTaskStatusRequest $request,
+       Workspace $workspace,
+       Project $project,
+       Task $task
+   ): JsonResponse {
+       $this->ensureProjectBelongsToWorkspace(
+           $workspace,
+           $project
+       );
+
+       $this->ensureTaskBelongsToProject(
+           $project,
+           $task
+       );
+
+       Gate::authorize(
+           'view',
+           $workspace
+       );
+
+       $validated = $request->validated();
+
+       $status = TaskStatus::from(
+           $validated['status']
+       );
+
+       $position = $task->position;
+
+       if ($task->status !== $status) {
+           $position = $this->nextPosition(
+               $project,
+               $status
+           );
+       }
+
+       $completedAt = $task->completed_at;
+
+       if (
+           $status->isCompleted() &&
+           !$task->status->isCompleted()
+       ) {
+           $completedAt = now();
+       }
+
+       if (!$status->isCompleted()) {
+           $completedAt = null;
+       }
+
+       DB::transaction(
+           function () use (
+               $request,
+               $task,
+               $status,
+               $position,
+               $completedAt
+           ): void {
+               $task->update([
+                   'status' => $status,
+                   'position' => $position,
+                   'completed_at' => $completedAt,
+               ]);
+
+               /*
+                * A user who changes the task
+                * becomes a watcher automatically.
+                */
+               $task
+                   ->watchers()
+                   ->syncWithoutDetaching([
+                       $request->user()->id,
+                   ]);
+           }
+       );
+
+       $task->load([
+           'creator:id,name,email,avatar_path',
+
+           'assignee:id,name,email,avatar_path',
+
+           'assignees:id,name,email,avatar_path',
+
+           'watchers:id,name,email,avatar_path',
+       ]);
+
+       return response()->json([
+           'message' =>
+               'Task status updated successfully.',
 
            'data' => [
                'task' => $task,
