@@ -16,6 +16,7 @@ use App\Models\WorkspaceMembership;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\Gate;
 
 class TaskCommentAttachmentController extends Controller
 {
@@ -40,6 +41,10 @@ class TaskCommentAttachmentController extends Controller
             $comment,
             $attachment,
             $user,
+        );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
         );
 
         abort_unless(
@@ -92,6 +97,10 @@ class TaskCommentAttachmentController extends Controller
             $comment,
             $attachment,
             $user,
+        );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
         );
 
         abort_unless(

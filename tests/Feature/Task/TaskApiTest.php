@@ -149,10 +149,10 @@ class TaskApiTest extends TestCase
                 'assigned_to' => $outsider->id,
             ]
         )
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors([
-                'assigned_to',
-            ]);
+         ->assertUnprocessable()
+         ->assertJsonValidationErrors([
+             'assignee_ids.0',
+         ]);
 
         $this->assertDatabaseCount(
             'tasks',

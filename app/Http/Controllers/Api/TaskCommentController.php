@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
-
+use Illuminate\Support\Facades\Gate;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTaskCommentRequest;
@@ -42,6 +42,10 @@ class TaskCommentController extends Controller
             $project,
             $task,
             $user,
+        );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
         );
 
         $comments =
@@ -97,6 +101,10 @@ class TaskCommentController extends Controller
             $task,
             $user,
         );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
+        );
 
         $validated =
             $request->validated();
@@ -124,6 +132,11 @@ class TaskCommentController extends Controller
                     $images,
                     &$storedFiles,
                 ): TaskComment {
+                $task
+                    ->watchers()
+                    ->syncWithoutDetaching([
+                        $user->id,
+                    ]);
                     $comment =
                         TaskComment::query()
                             ->create([
@@ -271,6 +284,10 @@ class TaskCommentController extends Controller
             $comment,
             $user,
         );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
+        );
 
         $this->assertCanManageComment(
             $workspace,
@@ -354,6 +371,10 @@ class TaskCommentController extends Controller
             $task,
             $comment,
             $user,
+        );
+        Gate::authorize(
+            'participateInDiscussion',
+            $task,
         );
 
         $this->assertCanManageComment(

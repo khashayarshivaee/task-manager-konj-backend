@@ -432,6 +432,9 @@ class TaskCommentApiTest extends TestCase
         Sanctum::actingAs(
             $member,
         );
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
 
         $this->putJson(
             $this->commentUrl(
@@ -463,6 +466,9 @@ class TaskCommentApiTest extends TestCase
         Sanctum::actingAs(
             $member,
         );
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
 
         $commentResponse =
             $this->postJson(
@@ -814,6 +820,130 @@ class TaskCommentApiTest extends TestCase
             "/api/workspaces/{$this->workspaceId}/projects/{$otherProjectId}/tasks/{$this->taskId}/comments",
         )->assertNotFound();
     }
+    public function test_regular_member_cannot_access_comments_before_watching(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->getJson(
+            $this->commentsUrl(),
+        )->assertForbidden();
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'This comment must not be created.',
+            ],
+        )->assertForbidden();
+
+        $this->assertDatabaseMissing(
+            'task_comments',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $member->id,
+            ],
+        );
+    }
+
+    public function test_regular_member_can_comment_after_watching(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        $this->getJson(
+            $this->commentsUrl(),
+        )->assertOk();
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'Comment from a task watcher.',
+            ],
+        )
+            ->assertCreated()
+            ->assertJsonPath(
+                'data.comment.author.id',
+                $member->id,
+            );
+
+        $this->assertDatabaseHas(
+            'task_comments',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $member->id,
+
+                'body' =>
+                    'Comment from a task watcher.',
+            ],
+        );
+    }
+
+    public function test_workspace_admin_becomes_watcher_after_commenting(): void
+    {
+        $admin =
+            User::factory()->create();
+
+        WorkspaceMembership::query()
+            ->create([
+                'workspace_id' =>
+                    $this->workspaceId,
+
+                'user_id' =>
+                    $admin->id,
+
+                'role' =>
+                    WorkspaceRole::Admin
+                        ->value,
+            ]);
+
+        $this->assertDatabaseMissing(
+            'task_watchers',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $admin->id,
+            ],
+        );
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'Admin joined the discussion.',
+            ],
+        )->assertCreated();
+
+        $this->assertDatabaseHas(
+            'task_watchers',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $admin->id,
+            ],
+        );
+    }
 
     private function createTextComment(
         string $body,
@@ -860,6 +990,11 @@ class TaskCommentApiTest extends TestCase
         return "/api/workspaces/{$this->workspaceId}/projects/{$this->projectId}/tasks/{$this->taskId}/comments";
     }
 
+    private function watchUrl(): string
+    {
+        return "/api/workspaces/{$this->workspaceId}/projects/{$this->projectId}/tasks/{$this->taskId}/watch";
+    }
+
     private function commentUrl(
         int $commentId,
     ): string {
@@ -887,4 +1022,6 @@ class TaskCommentApiTest extends TestCase
         )
             .'/file';
     }
+
+
 }

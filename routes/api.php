@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\TaskWatcherController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -282,6 +282,30 @@ Route::prefix('workspaces')
                 'destroy',
             ],
         );
+
+      Route::get(
+          '/{workspace}/projects/{project}/tasks/{task}/watchers',
+          [
+              TaskWatcherController::class,
+              'index',
+          ],
+      );
+
+      Route::post(
+          '/{workspace}/projects/{project}/tasks/{task}/watch',
+          [
+              TaskWatcherController::class,
+              'store',
+          ],
+      );
+
+      Route::delete(
+          '/{workspace}/projects/{project}/tasks/{task}/watch',
+          [
+              TaskWatcherController::class,
+              'destroy',
+          ],
+      );
 
         /*
         |--------------------------------------------------------------------------
