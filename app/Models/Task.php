@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\DB;
 #[Fillable([
     'project_id',
     'created_by',
@@ -81,9 +83,10 @@ class Task extends Model
             User::class,
             'task_watchers'
         )
-            ->withPivot([
-                'id',
-            ])
+          ->withPivot([
+              'id',
+              'last_read_comment_id',
+          ])
             ->withTimestamps();
     }
 
@@ -92,6 +95,70 @@ class Task extends Model
         return $this->hasMany(
             TaskComment::class
         );
+    }
+
+    /**
+     * Add the authenticated user's unread comment
+     * count to every selected task.
+     */
+    public function scopeWithUnreadCommentsCount(
+        Builder $query,
+        int $userId,
+    ): Builder {
+        $commentsQuery = DB::table(
+            'task_comments',
+        )
+            ->join(
+                'task_watchers',
+                function (
+                    JoinClause $join,
+                ) use ($userId): void {
+                    $join
+                        ->on(
+                            'task_watchers.task_id',
+                            '=',
+                            'task_comments.task_id',
+                        )
+                        ->where(
+                            'task_watchers.user_id',
+                            '=',
+                            $userId,
+                        );
+                },
+            )
+            ->selectRaw('COUNT(*)')
+            ->whereColumn(
+                'task_comments.task_id',
+                'tasks.id',
+            )
+            ->whereNull(
+                'task_comments.deleted_at',
+            )
+            ->where(
+                'task_comments.user_id',
+                '!=',
+                $userId,
+            )
+            ->where(
+                function ($comments): void {
+                    $comments
+                        ->whereNull(
+                            'task_watchers.last_read_comment_id',
+                        )
+                        ->orWhereColumn(
+                            'task_comments.id',
+                            '>',
+                            'task_watchers.last_read_comment_id',
+                        );
+                },
+            );
+
+        return $query
+            ->select('tasks.*')
+            ->selectSub(
+                $commentsQuery,
+                'unread_comments_count',
+            );
     }
 
     /**
@@ -116,6 +183,7 @@ class Task extends Model
             'due_at' => 'date',
             'completed_at' => 'datetime',
             'position' => 'integer',
+            'unread_comments_count' => 'integer',
         ];
     }
 }

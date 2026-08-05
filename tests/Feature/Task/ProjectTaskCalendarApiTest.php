@@ -15,6 +15,7 @@ use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use App\Models\TaskComment;
 
 class ProjectTaskCalendarApiTest extends TestCase
 {
@@ -109,6 +110,8 @@ class ProjectTaskCalendarApiTest extends TestCase
             null,
             4
         );
+
+
 
         $this->getJson(
             $this->calendarUrl()
@@ -288,6 +291,74 @@ class ProjectTaskCalendarApiTest extends TestCase
         )->assertNotFound();
     }
 
+    public function test_calendar_returns_unread_comment_count_and_resets_after_reading(): void
+    {
+        $task = $this->createTask(
+            'Calendar task with unread comment',
+            TaskStatus::Todo,
+            '2026-08-15',
+            1,
+        );
+
+        $task
+            ->watchers()
+            ->attach(
+                $this->owner->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        $commenter =
+            User::factory()->create();
+
+        TaskComment::query()->create([
+            'task_id' => $task->id,
+            'user_id' => $commenter->id,
+            'parent_id' => null,
+            'body' => 'Unread calendar comment.',
+        ]);
+
+        $calendarUrl =
+            $this->calendarUrl()
+            .'?from=2026-08-01'
+            .'&to=2026-08-31';
+
+        $this->getJson(
+            $calendarUrl,
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.tasks.0.id',
+                $task->id,
+            )
+            ->assertJsonPath(
+                'data.tasks.0.unread_comments_count',
+                1,
+            );
+
+        $this->patchJson(
+            $this->commentsReadUrl(
+                $task,
+            ),
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.unread_comments_count',
+                0,
+            );
+
+        $this->getJson(
+            $calendarUrl,
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.tasks.0.unread_comments_count',
+                0,
+            );
+    }
+
     private function createTask(
         string $title,
         TaskStatus $status,
@@ -320,6 +391,17 @@ class ProjectTaskCalendarApiTest extends TestCase
                     : null,
         ]);
     }
+    private function commentsReadUrl(
+        Task $task,
+    ): string {
+        return sprintf(
+            '/api/workspaces/%d/projects/%d/tasks/%d/comments/read',
+            $this->workspace->id,
+            $this->project->id,
+            $task->id,
+        );
+    }
+
 
     private function calendarUrl(): string
     {

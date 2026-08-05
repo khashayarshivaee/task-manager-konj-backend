@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
 use App\Http\Controllers\Api\ProjectTaskCalendarController;
+use App\Http\Controllers\Api\TaskCommentReadController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -354,6 +355,11 @@ Route::prefix('workspaces')
                 TaskCommentController::class,
                 'index',
             ],
+        );
+
+        Route::patch(
+            '/{workspace}/projects/{project}/tasks/{task}/comments/read',
+            TaskCommentReadController::class,
         );
 
         Route::post(

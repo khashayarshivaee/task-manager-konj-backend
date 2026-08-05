@@ -14,6 +14,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use Illuminate\Broadcasting\BroadcastManager;
+use App\Models\Task;
+use App\Services\TaskDiscussionReadService;
+use App\Events\TaskCommentCreated;
+use App\Events\TaskUnreadCommentsUpdated;
+use Illuminate\Support\Facades\Event;
 
 class TaskCommentApiTest extends TestCase
 {
@@ -944,6 +950,458 @@ class TaskCommentApiTest extends TestCase
             ],
         );
     }
+    public function test_new_watcher_starts_with_existing_comments_read(): void
+    {
+        $commentId =
+            $this->createTextComment(
+                'Comment created before watching.',
+            );
+
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        $this->assertDatabaseHas(
+            'task_watchers',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $member->id,
+
+                'last_read_comment_id' =>
+                    $commentId,
+            ],
+        );
+
+        $task = Task::query()
+            ->findOrFail(
+                $this->taskId,
+            );
+
+        $unreadCount =
+            app(
+                TaskDiscussionReadService::class,
+            )->unreadCount(
+                $task,
+                $member,
+            );
+
+        $this->assertSame(
+            0,
+            $unreadCount,
+        );
+    }
+
+    public function test_comment_from_another_user_becomes_unread_but_own_comment_does_not(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'Comment written by the member.',
+            ],
+        )->assertCreated();
+
+        $task = Task::query()
+            ->findOrFail(
+                $this->taskId,
+            );
+
+        $discussionRead =
+            app(
+                TaskDiscussionReadService::class,
+            );
+
+        $this->assertSame(
+            0,
+            $discussionRead->unreadCount(
+                $task,
+                $member,
+            ),
+        );
+
+        Sanctum::actingAs(
+            $this->owner,
+        );
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'Comment written by another user.',
+            ],
+        )->assertCreated();
+
+        $this->assertSame(
+            1,
+            $discussionRead->unreadCount(
+                $task,
+                $member,
+            ),
+        );
+    }
+
+    public function test_marking_comments_as_read_only_updates_the_current_user(): void
+    {
+        $firstMember =
+            $this->createWorkspaceMember();
+
+        $secondMember =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs(
+            $firstMember,
+        );
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        Sanctum::actingAs(
+            $secondMember,
+        );
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        Sanctum::actingAs(
+            $this->owner,
+        );
+
+        $commentId =
+            $this->createTextComment(
+                'Unread comment for both members.',
+            );
+
+        $task = Task::query()
+            ->findOrFail(
+                $this->taskId,
+            );
+
+        $discussionRead =
+            app(
+                TaskDiscussionReadService::class,
+            );
+
+        $this->assertSame(
+            1,
+            $discussionRead->unreadCount(
+                $task,
+                $firstMember,
+            ),
+        );
+
+        $this->assertSame(
+            1,
+            $discussionRead->unreadCount(
+                $task,
+                $secondMember,
+            ),
+        );
+
+        Sanctum::actingAs(
+            $firstMember,
+        );
+
+        $this->patchJson(
+            $this->commentsReadUrl(),
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.last_read_comment_id',
+                $commentId,
+            )
+            ->assertJsonPath(
+                'data.unread_comments_count',
+                0,
+            );
+
+        $this->assertSame(
+            0,
+            $discussionRead->unreadCount(
+                $task,
+                $firstMember,
+            ),
+        );
+
+        $this->assertSame(
+            1,
+            $discussionRead->unreadCount(
+                $task,
+                $secondMember,
+            ),
+        );
+
+        $this->assertDatabaseHas(
+            'task_watchers',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $firstMember->id,
+
+                'last_read_comment_id' =>
+                    $commentId,
+            ],
+        );
+    }
+
+    public function test_deleted_comment_is_not_counted_as_unread(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        Sanctum::actingAs(
+            $this->owner,
+        );
+
+        $commentId =
+            $this->createTextComment(
+                'Comment that will be deleted.',
+            );
+
+        $task = Task::query()
+            ->findOrFail(
+                $this->taskId,
+            );
+
+        $discussionRead =
+            app(
+                TaskDiscussionReadService::class,
+            );
+
+        $this->assertSame(
+            1,
+            $discussionRead->unreadCount(
+                $task,
+                $member,
+            ),
+        );
+
+        $this->deleteJson(
+            $this->commentUrl(
+                $commentId,
+            ),
+        )->assertOk();
+
+        $this->assertSame(
+            0,
+            $discussionRead->unreadCount(
+                $task,
+                $member,
+            ),
+        );
+    }
+
+    public function test_creating_comment_dispatches_realtime_events_for_task_and_watchers(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        Event::fake([
+            TaskCommentCreated::class,
+            TaskUnreadCommentsUpdated::class,
+        ]);
+
+        Sanctum::actingAs(
+            $this->owner,
+        );
+
+        $this->postJson(
+            $this->commentsUrl(),
+            [
+                'body' =>
+                    'Realtime comment created.',
+            ],
+        )->assertCreated();
+
+        Event::assertDispatched(
+            TaskCommentCreated::class,
+            function (
+                TaskCommentCreated $event,
+            ): bool {
+                return $event->workspaceId ===
+                        $this->workspaceId
+                    && $event->projectId ===
+                        $this->projectId
+                    && $event->taskId ===
+                        $this->taskId
+                    && $event->actorId ===
+                        $this->owner->id
+                    && data_get(
+                        $event->comment,
+                        'body',
+                    ) ===
+                        'Realtime comment created.';
+            },
+        );
+
+        Event::assertDispatched(
+            TaskUnreadCommentsUpdated::class,
+            fn (
+                TaskUnreadCommentsUpdated $event,
+            ): bool =>
+                $event->taskId ===
+                    $this->taskId
+                && $event->userId ===
+                    $member->id
+                && $event
+                    ->unreadCommentsCount === 1
+                && $event->reason ===
+                    'comment_created',
+        );
+
+        Event::assertDispatched(
+            TaskUnreadCommentsUpdated::class,
+            fn (
+                TaskUnreadCommentsUpdated $event,
+            ): bool =>
+                $event->taskId ===
+                    $this->taskId
+                && $event->userId ===
+                    $this->owner->id
+                && $event
+                    ->unreadCommentsCount === 0,
+        );
+    }
+
+    public function test_task_private_channel_requires_discussion_access(): void
+    {
+        /*
+         * PHPUnit normally uses the log broadcaster,
+         * whose auth method does not authorize private
+         * channels. Use an isolated Reverb broadcaster
+         * for this HTTP authorization test.
+         */
+        config()->set(
+            'broadcasting.default',
+            'reverb',
+        );
+
+        config()->set(
+            'broadcasting.connections.reverb',
+            [
+                'driver' => 'reverb',
+
+                'key' =>
+                    'test-reverb-key',
+
+                'secret' =>
+                    'test-reverb-secret',
+
+                'app_id' =>
+                    'test-reverb-app',
+
+                'options' => [
+                    'host' =>
+                        '127.0.0.1',
+
+                    'port' =>
+                        8080,
+
+                    'scheme' =>
+                        'http',
+
+                    'useTLS' =>
+                        false,
+                ],
+
+                'client_options' => [],
+            ],
+        );
+
+        /*
+         * Remove the previously resolved log driver.
+         */
+       app(
+           BroadcastManager::class,
+       )->forgetDrivers();
+
+        /*
+         * Channel callbacks were initially registered
+         * on the log broadcaster during application
+         * boot. Register them again on the isolated
+         * Reverb broadcaster.
+         *
+         * This must be require, not require_once.
+         */
+        require base_path(
+            'routes/channels.php',
+        );
+
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs($member);
+
+        $this->assertDatabaseMissing(
+            'task_watchers',
+            [
+                'task_id' =>
+                    $this->taskId,
+
+                'user_id' =>
+                    $member->id,
+            ],
+        );
+
+        $authorizationPayload = [
+            'socket_id' =>
+                '1234.5678',
+
+            'channel_name' =>
+                'private-tasks.'
+                .$this->taskId,
+        ];
+
+        $this->postJson(
+            '/api/broadcasting/auth',
+            $authorizationPayload,
+        )->assertForbidden();
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        $this->postJson(
+            '/api/broadcasting/auth',
+            $authorizationPayload,
+        )
+            ->assertOk()
+            ->assertJsonStructure([
+                'auth',
+            ]);
+    }
 
     private function createTextComment(
         string $body,
@@ -988,6 +1446,12 @@ class TaskCommentApiTest extends TestCase
     private function commentsUrl(): string
     {
         return "/api/workspaces/{$this->workspaceId}/projects/{$this->projectId}/tasks/{$this->taskId}/comments";
+    }
+
+    private function commentsReadUrl(): string
+    {
+        return $this->commentsUrl()
+            .'/read';
     }
 
     private function watchUrl(): string

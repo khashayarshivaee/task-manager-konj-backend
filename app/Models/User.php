@@ -130,20 +130,21 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-    /**
-     * Get tasks watched by the user.
-     */
-    public function watchedTasks(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            Task::class,
-            'task_watchers'
-        )
-            ->withPivot([
-                'id',
-            ])
-            ->withTimestamps();
-    }
+ /**
+  * Get tasks watched by the user.
+  */
+ public function watchedTasks(): BelongsToMany
+ {
+     return $this->belongsToMany(
+         Task::class,
+         'task_watchers',
+     )
+         ->withPivot([
+             'id',
+             'last_read_comment_id',
+         ])
+         ->withTimestamps();
+ }
 
     protected function casts(): array
     {

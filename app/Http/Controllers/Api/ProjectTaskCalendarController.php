@@ -10,6 +10,8 @@ use App\Models\Workspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use App\Models\User;
+use Symfony\Component\HttpFoundation\Response;
 
 class ProjectTaskCalendarController
 {
@@ -27,6 +29,12 @@ class ProjectTaskCalendarController
         Gate::authorize(
             'view',
             $workspace
+        );
+        $user = $request->user();
+
+        abort_unless(
+            $user instanceof User,
+            Response::HTTP_UNAUTHORIZED,
         );
 
         $validated =
@@ -57,8 +65,11 @@ SQL;
 
         $tasks = $project
             ->tasks()
-            ->getQuery()
-            ->with([
+           ->getQuery()
+           ->withUnreadCommentsCount(
+               $user->id,
+           )
+           ->with([
                 'creator:id,name,email,avatar_path',
 
                 'assignee:id,name,email,avatar_path',

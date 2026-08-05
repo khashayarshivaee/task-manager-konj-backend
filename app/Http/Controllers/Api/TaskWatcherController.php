@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Workspace;
+use App\Services\TaskDiscussionReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
@@ -53,11 +54,12 @@ class TaskWatcherController extends Controller
     /**
      * Add the authenticated user as a watcher.
      */
-    public function store(
-        Workspace $workspace,
-        Project $project,
-        Task $task,
-    ): JsonResponse {
+   public function store(
+       Workspace $workspace,
+       Project $project,
+       Task $task,
+       TaskDiscussionReadService $discussionRead,
+   ): JsonResponse {
         $user = request()->user();
 
         abort_unless(
@@ -76,11 +78,10 @@ class TaskWatcherController extends Controller
             $task,
         );
 
-        $task
-            ->watchers()
-            ->syncWithoutDetaching([
-                $user->id,
-            ]);
+    $discussionRead->ensureWatchingAtLatest(
+        $task,
+        $user,
+    );
 
         return response()->json([
             'message' =>

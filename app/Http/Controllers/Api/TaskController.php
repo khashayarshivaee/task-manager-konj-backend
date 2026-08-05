@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
+
+use App\Services\TaskDiscussionReadService;
 use Illuminate\Support\Facades\DB;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
@@ -24,6 +26,10 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 class TaskController extends Controller
 {
+    public function __construct(
+        private readonly TaskDiscussionReadService $discussionRead,
+    ) {
+    }
  /**
   * Get paginated tasks belonging to a project.
   */
@@ -43,11 +49,20 @@ class TaskController extends Controller
      );
 
      $validated = $request->validated();
+     $user = $request->user();
 
-  $query = $project
-      ->tasks()
-      ->getQuery()
-      ->with([
+     abort_unless(
+         $user instanceof User,
+         Response::HTTP_UNAUTHORIZED,
+     );
+
+ $query = $project
+     ->tasks()
+     ->getQuery()
+     ->withUnreadCommentsCount(
+         $user->id,
+     )
+     ->with([
           'creator:id,name,email,avatar_path',
 
           'assignee:id,name,email,avatar_path',
@@ -256,15 +271,10 @@ class TaskController extends Controller
            }
        );
 
-       $task->load([
-           'creator:id,name,email,avatar_path',
-
-           'assignee:id,name,email,avatar_path',
-
-           'assignees:id,name,email,avatar_path',
-
-           'watchers:id,name,email,avatar_path',
-       ]);
+    $task = $this->loadTaskForResponse(
+        $task,
+        (int) $request->user()->id,
+    );
 
        return response()->json([
            'message' =>
@@ -298,16 +308,16 @@ class TaskController extends Controller
             'view',
             $workspace
         );
+        $user = request()->user();
 
-       $task->load([
-           'creator:id,name,email,avatar_path',
-
-           'assignee:id,name,email,avatar_path',
-
-           'assignees:id,name,email,avatar_path',
-
-           'watchers:id,name,email,avatar_path',
-       ]);
+        abort_unless(
+            $user instanceof User,
+            Response::HTTP_UNAUTHORIZED,
+        );
+$task = $this->loadTaskForResponse(
+    $task,
+    $user->id,
+);
 
         return response()->json([
             'data' => [
@@ -429,15 +439,10 @@ class TaskController extends Controller
            }
        );
 
-       $task->load([
-           'creator:id,name,email,avatar_path',
-
-           'assignee:id,name,email,avatar_path',
-
-           'assignees:id,name,email,avatar_path',
-
-           'watchers:id,name,email,avatar_path',
-       ]);
+      $task = $this->loadTaskForResponse(
+          $task,
+          (int) $request->user()->id,
+      );
 
        return response()->json([
            'message' =>
@@ -516,26 +521,23 @@ class TaskController extends Controller
                ]);
 
                /*
-                * A user who changes the task
-                * becomes a watcher automatically.
-                */
-               $task
-                   ->watchers()
-                   ->syncWithoutDetaching([
-                       $request->user()->id,
-                   ]);
+            /*
+             * A user who changes the task becomes
+             * a watcher without resetting an existing
+             * read position.
+             */
+            $this->discussionRead
+                ->ensureWatchingAtLatest(
+                    $task,
+                    $request->user(),
+                );
            }
        );
 
-       $task->load([
-           'creator:id,name,email,avatar_path',
-
-           'assignee:id,name,email,avatar_path',
-
-           'assignees:id,name,email,avatar_path',
-
-           'watchers:id,name,email,avatar_path',
-       ]);
+     $task = $this->loadTaskForResponse(
+         $task,
+         (int) $request->user()->id,
+     );
 
        return response()->json([
            'message' =>
@@ -830,10 +832,33 @@ class TaskController extends Controller
             ->values()
             ->all();
 
-        $task
-            ->watchers()
-            ->syncWithoutDetaching(
-                $watcherIds
+      foreach ($watcherIds as $watcherId) {
+          $this->discussionRead
+              ->ensureWatchingAtLatest(
+                  $task,
+                  $watcherId,
+              );
+      }
+    }
+    private function loadTaskForResponse(
+        Task $task,
+        int $userId,
+    ): Task {
+        return Task::query()
+            ->withUnreadCommentsCount(
+                $userId,
+            )
+            ->with([
+                'creator:id,name,email,avatar_path',
+
+                'assignee:id,name,email,avatar_path',
+
+                'assignees:id,name,email,avatar_path',
+
+                'watchers:id,name,email,avatar_path',
+            ])
+            ->findOrFail(
+                $task->id,
             );
     }
 

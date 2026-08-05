@@ -15,7 +15,7 @@ use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
-
+use App\Models\TaskComment;
 class TaskApiTest extends TestCase
 {
     use RefreshDatabase;
@@ -309,6 +309,99 @@ class TaskApiTest extends TestCase
             ->assertJsonPath(
                 'data.task.title',
                 'Visible Task'
+            );
+    }
+
+    public function test_task_show_returns_current_users_unread_comment_count(): void
+    {
+        $owner =
+            User::factory()->create();
+
+        $member =
+            User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addMember(
+            $workspace,
+            $member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        $task = Task::query()->create([
+            'project_id' => $project->id,
+            'created_by' => $owner->id,
+            'title' =>
+                'Task details with unread comment',
+            'status' => TaskStatus::Todo,
+            'priority' => TaskPriority::Medium,
+            'position' => 1,
+        ]);
+
+        $task
+            ->watchers()
+            ->attach(
+                $member->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        TaskComment::query()->create([
+            'task_id' => $task->id,
+            'user_id' => $owner->id,
+            'parent_id' => null,
+            'body' =>
+                'Unread comment in task details.',
+        ]);
+
+        Sanctum::actingAs(
+            $member,
+        );
+
+        $taskUrl =
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$task->id}";
+
+        $this->getJson(
+            $taskUrl,
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.task.id',
+                $task->id,
+            )
+            ->assertJsonPath(
+                'data.task.unread_comments_count',
+                1,
+            );
+
+        $this->patchJson(
+            $taskUrl.'/comments/read',
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.unread_comments_count',
+                0,
+            );
+
+        $this->getJson(
+            $taskUrl,
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.task.unread_comments_count',
+                0,
             );
     }
 

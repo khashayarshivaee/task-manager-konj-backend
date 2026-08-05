@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 namespace Tests\Feature\Task;
-
+use App\Models\TaskComment;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
@@ -105,6 +105,7 @@ class TaskListApiTest extends TestCase
                 $index
             );
         }
+
 
         $this->getJson(
             $this->tasksUrl()
@@ -380,6 +381,73 @@ class TaskListApiTest extends TestCase
             ]);
     }
 
+    public function test_task_list_returns_unread_comment_count_and_resets_after_reading(): void
+    {
+        $task = $this->createTask(
+            'Task with unread comment',
+            TaskStatus::Todo,
+            TaskPriority::Medium,
+            1,
+        );
+
+        $task
+            ->watchers()
+            ->attach(
+                $this->owner->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        $commenter =
+            User::factory()->create();
+
+        TaskComment::query()->create([
+            'task_id' => $task->id,
+            'user_id' => $commenter->id,
+            'parent_id' => null,
+            'body' => 'Unread task list comment.',
+        ]);
+
+        $this->getJson(
+            $this->tasksUrl()
+            .'?sort=title'
+            .'&direction=asc',
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.tasks.0.id',
+                $task->id,
+            )
+            ->assertJsonPath(
+                'data.tasks.0.unread_comments_count',
+                1,
+            );
+
+        $this->patchJson(
+            $this->commentsReadUrl(
+                $task,
+            ),
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.unread_comments_count',
+                0,
+            );
+
+        $this->getJson(
+            $this->tasksUrl()
+            .'?sort=title'
+            .'&direction=asc',
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.tasks.0.unread_comments_count',
+                0,
+            );
+    }
+
     private function createTask(
         string $title,
         TaskStatus $status,
@@ -414,6 +482,17 @@ class TaskListApiTest extends TestCase
                     : null,
         ]);
     }
+
+       private function commentsReadUrl(
+                Task $task,
+            ): string {
+                return sprintf(
+                    '/api/workspaces/%d/projects/%d/tasks/%d/comments/read',
+                    $this->workspace->id,
+                    $this->project->id,
+                    $task->id,
+                );
+            }
 
     private function tasksUrl(): string
     {

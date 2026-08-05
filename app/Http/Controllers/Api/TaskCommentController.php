@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
+use App\Services\TaskCommentRealtimeService;
 use Illuminate\Support\Facades\Gate;
 use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
@@ -11,6 +12,7 @@ use App\Http\Requests\UpdateTaskCommentRequest;
 use App\Http\Resources\TaskCommentResource;
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\TaskDiscussionReadService;
 use App\Models\TaskComment;
 use App\Models\User;
 use App\Models\Workspace;
@@ -82,12 +84,14 @@ class TaskCommentController extends Controller
         ]);
     }
 
-    public function store(
-        StoreTaskCommentRequest $request,
-        Workspace $workspace,
-        Project $project,
-        Task $task,
-    ): JsonResponse {
+public function store(
+    StoreTaskCommentRequest $request,
+    Workspace $workspace,
+    Project $project,
+    Task $task,
+    TaskDiscussionReadService $discussionRead,
+    TaskCommentRealtimeService $realtime,
+): JsonResponse {
         $user = $request->user();
 
         abort_unless(
@@ -130,13 +134,10 @@ class TaskCommentController extends Controller
                     $validated,
                     $parentId,
                     $images,
+                    $discussionRead,
                     &$storedFiles,
                 ): TaskComment {
-                $task
-                    ->watchers()
-                    ->syncWithoutDetaching([
-                        $user->id,
-                    ]);
+
                     $comment =
                         TaskComment::query()
                             ->create([
@@ -218,6 +219,18 @@ class TaskCommentController extends Controller
                                         ->getSize(),
                             ]);
                     }
+                    $discussionRead
+                        ->ensureWatchingAtLatest(
+                            $task,
+                            $user,
+                        );
+
+                    $discussionRead
+                        ->markReadThrough(
+                            $task,
+                            $user,
+                            $comment->id,
+                        );
 
                     return $comment;
                 },
@@ -246,6 +259,20 @@ class TaskCommentController extends Controller
 
             'repliesRecursive',
         ]);
+        $commentPayload =
+            (new TaskCommentResource(
+                $comment,
+            ))->resolve(
+                $request,
+            );
+
+        $realtime->broadcastCreated(
+            (int) $workspace->id,
+            (int) $project->id,
+            $task,
+            (int) $user->id,
+            $commentPayload,
+        );
 
         return response()->json(
             [
@@ -263,13 +290,14 @@ class TaskCommentController extends Controller
         );
     }
 
-    public function update(
-        UpdateTaskCommentRequest $request,
-        Workspace $workspace,
-        Project $project,
-        Task $task,
-        TaskComment $comment,
-    ): JsonResponse {
+  public function update(
+      UpdateTaskCommentRequest $request,
+      Workspace $workspace,
+      Project $project,
+      Task $task,
+      TaskComment $comment,
+      TaskCommentRealtimeService $realtime,
+  ): JsonResponse {
         $user = $request->user();
 
         abort_unless(
@@ -338,6 +366,20 @@ class TaskCommentController extends Controller
 
             'repliesRecursive',
         ]);
+        $commentPayload =
+            (new TaskCommentResource(
+                $comment,
+            ))->resolve(
+                $request,
+            );
+
+        $realtime->broadcastUpdated(
+            (int) $workspace->id,
+            (int) $project->id,
+            $task,
+            (int) $user->id,
+            $commentPayload,
+        );
 
         return response()->json([
             'message' =>
@@ -352,12 +394,13 @@ class TaskCommentController extends Controller
         ]);
     }
 
-    public function destroy(
-        Workspace $workspace,
-        Project $project,
-        Task $task,
-        TaskComment $comment,
-    ): JsonResponse {
+   public function destroy(
+       Workspace $workspace,
+       Project $project,
+       Task $task,
+       TaskComment $comment,
+       TaskCommentRealtimeService $realtime,
+   ): JsonResponse {
         $user = request()->user();
 
         abort_unless(
@@ -382,6 +425,13 @@ class TaskCommentController extends Controller
             $comment,
             $user,
         );
+        $commentId =
+            (int) $comment->id;
+
+        $parentId =
+            $comment->parent_id === null
+                ? null
+                : (int) $comment->parent_id;
 
         $attachments =
             $comment
@@ -407,6 +457,14 @@ class TaskCommentController extends Controller
 
                 $comment->delete();
             },
+        );
+        $realtime->broadcastDeleted(
+            (int) $workspace->id,
+            (int) $project->id,
+            $task,
+            (int) $user->id,
+            $commentId,
+            $parentId,
         );
 
         return response()->json([
