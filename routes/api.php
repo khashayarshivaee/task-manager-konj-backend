@@ -15,6 +15,7 @@ use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskWatcherController;
+use App\Http\Controllers\Api\WorkspaceDashboardController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -112,6 +113,20 @@ Route::prefix('workspaces')
             [
                 WorkspaceController::class,
                 'destroy',
+            ],
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workspace Dashboard
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/{workspace}/dashboard',
+            [
+                WorkspaceDashboardController::class,
+                'show',
             ],
         );
 
