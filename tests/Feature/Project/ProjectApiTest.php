@@ -433,6 +433,24 @@ class ProjectApiTest extends TestCase
             'created_by' => $owner->id,
             'slug' => 'task-manager-frontend',
         ]);
+        $this->assertDatabaseHas(
+            'project_memberships',
+            [
+                'project_id' => Project::query()
+                    ->where(
+                        'workspace_id',
+                        $workspace->id
+                    )
+                    ->where(
+                        'slug',
+                        'task-manager-frontend'
+                    )
+                    ->value('id'),
+
+                'user_id' => $owner->id,
+                'added_by' => $owner->id,
+            ],
+        );
     }
 
     public function test_admin_can_create_project(): void
@@ -450,12 +468,28 @@ class ProjectApiTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->postJson(
-            "/api/workspaces/{$workspace->id}/projects",
-            [
-                'name' => 'Admin Project',
-            ]
-        )->assertCreated();
+       $response = $this->postJson(
+           "/api/workspaces/{$workspace->id}/projects",
+           [
+               'name' => 'Admin Project',
+           ]
+       );
+
+       $response->assertCreated();
+
+       $projectId =
+           (int) $response->json(
+               'data.project.id'
+           );
+
+       $this->assertDatabaseHas(
+           'project_memberships',
+           [
+               'project_id' => $projectId,
+               'user_id' => $admin->id,
+               'added_by' => $admin->id,
+           ],
+       );
     }
 
     public function test_member_cannot_create_project(): void

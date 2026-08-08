@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
 use App\Http\Controllers\Api\ProjectTaskCalendarController;
 use App\Http\Controllers\Api\TaskCommentReadController;
+use App\Http\Controllers\Api\ProjectMemberController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -213,6 +214,35 @@ Route::prefix('workspaces')
             '/{workspace}/projects/{project}',
             [
                 ProjectController::class,
+                'destroy',
+            ],
+        );
+        /*
+        |--------------------------------------------------------------------------
+        | Project Members
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/{workspace}/projects/{project}/members',
+            [
+                ProjectMemberController::class,
+                'index',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/projects/{project}/members',
+            [
+                ProjectMemberController::class,
+                'store',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/projects/{project}/members/{membership}',
+            [
+                ProjectMemberController::class,
                 'destroy',
             ],
         );

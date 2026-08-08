@@ -99,6 +99,34 @@ class User extends Authenticatable
              'created_by'
          );
      }
+     /**
+      * Get the user's project membership records.
+      */
+     public function projectMemberships(): HasMany
+     {
+         return $this->hasMany(
+             ProjectMembership::class
+         );
+     }
+
+     /**
+      * Get projects the user belongs to.
+      */
+     public function projects(): BelongsToMany
+     {
+         return $this->belongsToMany(
+             Project::class,
+             'project_memberships'
+         )
+             ->using(ProjectMembership::class)
+             ->as('membership')
+             ->withPivot([
+                 'id',
+                 'added_by',
+                 'joined_at',
+             ])
+             ->withTimestamps();
+     }
 
      /**
       * Get tasks created by the user.

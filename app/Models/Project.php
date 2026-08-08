@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+
 #[Fillable([
     'workspace_id',
     'created_by',
@@ -39,6 +42,35 @@ class Project extends Model
             User::class,
             'created_by'
         );
+    }
+
+    /**
+     * Get all project membership records.
+     */
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(
+            ProjectMembership::class
+        );
+    }
+
+    /**
+     * Get all users belonging to the project team.
+     */
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'project_memberships'
+        )
+            ->using(ProjectMembership::class)
+            ->as('membership')
+            ->withPivot([
+                'id',
+                'added_by',
+                'joined_at',
+            ])
+            ->withTimestamps();
     }
 
     /**

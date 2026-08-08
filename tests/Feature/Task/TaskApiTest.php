@@ -83,6 +83,13 @@ class TaskApiTest extends TestCase
             $workspace,
             $owner
         );
+        $project
+            ->memberships()
+            ->create([
+                'user_id' => $member->id,
+                'added_by' => $owner->id,
+                'joined_at' => now(),
+            ]);
 
         Sanctum::actingAs($member);
 
@@ -126,6 +133,50 @@ class TaskApiTest extends TestCase
             'assigned_to' => $member->id,
             'title' => 'Build task modal',
         ]);
+    }
+    public function test_workspace_member_cannot_assign_user_who_is_not_project_member(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace = $this->createWorkspace(
+            $owner
+        );
+
+        $this->addMember(
+            $workspace,
+            $member
+        );
+
+        $project = $this->createProject(
+            $workspace,
+            $owner
+        );
+
+        Sanctum::actingAs($owner);
+
+        $this->postJson(
+            "/api/workspaces/{$workspace->id}/projects/{$project->id}/tasks",
+            [
+                'title' => 'Restricted assignment',
+
+                'assignee_ids' => [
+                    $member->id,
+                ],
+            ]
+        )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'assignee_ids.0',
+            ]);
+
+        $this->assertDatabaseMissing(
+            'tasks',
+            [
+                'project_id' => $project->id,
+                'title' => 'Restricted assignment',
+            ]
+        );
     }
 
     public function test_task_assignee_must_belong_to_workspace(): void
@@ -421,6 +472,13 @@ class TaskApiTest extends TestCase
             $workspace,
             $owner
         );
+        $project
+            ->memberships()
+            ->create([
+                'user_id' => $member->id,
+                'added_by' => $owner->id,
+                'joined_at' => now(),
+            ]);
 
         $task = Task::query()->create([
             'project_id' => $project->id,

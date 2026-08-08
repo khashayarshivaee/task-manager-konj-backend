@@ -6,6 +6,7 @@ namespace App\Http\Requests\Task;
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Models\Project;
 use App\Models\Workspace;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -91,10 +92,15 @@ class StoreTaskRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var Workspace|null $workspace */
-        $workspace = $this->route(
-            'workspace'
-        );
+       /** @var Workspace|null $workspace */
+       $workspace = $this->route(
+           'workspace'
+       );
+
+       /** @var Project|null $project */
+       $project = $this->route(
+           'project'
+       );
 
         return [
             'title' => [
@@ -129,32 +135,43 @@ class StoreTaskRequest extends FormRequest
                 'max:50',
             ],
 
-            'assignee_ids.*' => [
-                'integer',
-                'distinct',
+          'assignee_ids.*' => [
+              'integer',
+              'distinct',
 
-                Rule::exists(
-                    'workspace_memberships',
-                    'user_id'
-                )->where(
-                    fn ($query) =>
-                        $query->where(
-                            'workspace_id',
-                            $workspace?->id
-                        )
-                ),
+              Rule::exists(
+                  'workspace_memberships',
+                  'user_id'
+              )->where(
+                  fn ($query) =>
+                      $query->where(
+                          'workspace_id',
+                          $workspace?->id
+                      )
+              ),
 
-                Rule::exists(
-                    'users',
-                    'id'
-                )->where(
-                    fn ($query) =>
-                        $query->where(
-                            'is_active',
-                            true
-                        )
-                ),
-            ],
+              Rule::exists(
+                  'project_memberships',
+                  'user_id'
+              )->where(
+                  fn ($query) =>
+                      $query->where(
+                          'project_id',
+                          $project?->id
+                      )
+              ),
+
+              Rule::exists(
+                  'users',
+                  'id'
+              )->where(
+                  fn ($query) =>
+                      $query->where(
+                          'is_active',
+                          true
+                      )
+              ),
+          ],
 
             'starts_at' => [
                 'nullable',

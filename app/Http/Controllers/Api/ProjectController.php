@@ -90,6 +90,18 @@ class ProjectController extends Controller
             'creator:id,name,email',
         ]);
 
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $request->user()->id,
+
+                'added_by' =>
+                    $request->user()->id,
+
+                'joined_at' => now(),
+            ]);
+
         return response()->json([
             'message' => 'Project created successfully.',
 
