@@ -27,13 +27,14 @@ use Throwable;
 use App\Enums\ProjectActivitySubjectType;
 use App\Enums\ProjectActivityType;
 use App\Services\ProjectActivityLogger;
-
+use App\Services\ProjectActivityNotificationService;
 class TaskCommentController extends Controller
 {
-    public function __construct(
-        private readonly ProjectActivityLogger $activityLogger,
-    ) {
-    }
+ public function __construct(
+     private readonly ProjectActivityLogger $activityLogger,
+     private readonly ProjectActivityNotificationService $activityNotifications,
+ ) {
+ }
     public function index(
         Workspace $workspace,
         Project $project,
@@ -266,31 +267,60 @@ public function store(
 
             'repliesRecursive',
         ]);
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::CommentCreated,
-            actor: $user,
-            subjectType:
-                ProjectActivitySubjectType::Comment,
-            subjectId: $comment->id,
-            subjectLabel:
-                $this->commentActivityLabel(
-                    $comment
-                ),
-            metadata: [
-                'task_id' =>
-                    $task->id,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::CommentCreated,
+                actor: $user,
+                subjectType:
+                    ProjectActivitySubjectType::Comment,
+                subjectId: $comment->id,
+                subjectLabel:
+                    $this->commentActivityLabel(
+                        $comment
+                    ),
+                metadata: [
+                    'task_id' =>
+                        $task->id,
 
-                'parent_id' =>
-                    $comment->parent_id,
+                    'parent_id' =>
+                        $comment->parent_id,
 
-                'body' =>
-                    $comment->body,
+                    'body' =>
+                        $comment->body,
 
-                'attachments_count' =>
-                    $comment->attachments->count(),
-            ],
+                    'attachments_count' =>
+                        $comment->attachments->count(),
+                ],
+            );
+
+        $notificationRecipientIds =
+            $task
+                ->watchers()
+                ->pluck('users.id')
+                ->map(
+                    static fn ($userId): int =>
+                        (int) $userId,
+                );
+
+        if ($comment->parent_id !== null) {
+            $parentAuthorId =
+                $comment
+                    ->parent()
+                    ->value('user_id');
+
+            if ($parentAuthorId !== null) {
+                $notificationRecipientIds
+                    ->push(
+                        (int) $parentAuthorId,
+                    );
+            }
+        }
+
+        $this->activityNotifications->notify(
+            $activity,
+            $notificationRecipientIds,
         );
         $commentPayload =
             (new TaskCommentResource(

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 namespace Tests\Feature\Task;
-
+use Illuminate\Support\Facades\DB;
 use App\Enums\WorkspaceRole;
 use App\Models\TaskComment;
 use App\Models\TaskCommentAttachment;
@@ -863,6 +863,207 @@ class TaskCommentApiTest extends TestCase
                 $attachment->path,
             );
     }
+
+    public function test_task_watcher_receives_notification_for_new_root_comment(): void
+    {
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs(
+            $member,
+        );
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        Sanctum::actingAs(
+            $this->owner,
+        );
+
+        $response =
+            $this->postJson(
+                $this->commentsUrl(),
+                [
+                    'body' =>
+                        'Notification root comment',
+                ],
+            );
+
+        $response->assertCreated();
+
+        $commentId =
+            (int) $response->json(
+                'data.comment.id',
+            );
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $this->projectId,
+                )
+                ->where(
+                    'type',
+                    'comment_created',
+                )
+                ->where(
+                    'subject_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $this->owner->id,
+            ],
+        );
+    }
+
+   public function test_parent_comment_author_receives_reply_notification_even_when_not_watching_task(): void
+   {
+       $member =
+           $this->createWorkspaceMember();
+
+       Sanctum::actingAs(
+           $member,
+       );
+
+       /*
+        * A regular workspace member must first
+        * watch the task to participate in discussion.
+        */
+       $this->postJson(
+           $this->watchUrl(),
+       )->assertOk();
+
+       $parentResponse =
+           $this->postJson(
+               $this->commentsUrl(),
+               [
+                   'body' =>
+                       'Parent notification comment',
+               ],
+           );
+
+       $parentResponse->assertCreated();
+
+       $parentId =
+           (int) $parentResponse->json(
+               'data.comment.id',
+           );
+
+       /*
+        * Remove the watcher after the parent
+        * comment was created. This ensures the
+        * reply notification comes from the
+        * parent-author rule, not watcher status.
+        */
+       DB::table('task_watchers')
+           ->where(
+               'task_id',
+               $this->taskId,
+           )
+           ->where(
+               'user_id',
+               $member->id,
+           )
+           ->delete();
+
+       $this->assertDatabaseMissing(
+           'task_watchers',
+           [
+               'task_id' =>
+                   $this->taskId,
+
+               'user_id' =>
+                   $member->id,
+           ],
+       );
+
+       Sanctum::actingAs(
+           $this->owner,
+       );
+
+       $replyResponse =
+           $this->postJson(
+               $this->commentsUrl(),
+               [
+                   'parent_id' =>
+                       $parentId,
+
+                   'body' =>
+                       'Direct reply notification',
+               ],
+           );
+
+       $replyResponse->assertCreated();
+
+       $replyId =
+           (int) $replyResponse->json(
+               'data.comment.id',
+           );
+
+       $activity =
+           \App\Models\ProjectActivity::query()
+               ->where(
+                   'project_id',
+                   $this->projectId,
+               )
+               ->where(
+                   'type',
+                   'comment_created',
+               )
+               ->where(
+                   'subject_id',
+                   $replyId,
+               )
+               ->firstOrFail();
+
+       $this->assertDatabaseHas(
+           'project_activity_recipients',
+           [
+               'project_activity_id' =>
+                   $activity->id,
+
+               'user_id' =>
+                   $member->id,
+
+               'read_at' =>
+                   null,
+           ],
+       );
+
+       $this->assertDatabaseMissing(
+           'project_activity_recipients',
+           [
+               'project_activity_id' =>
+                   $activity->id,
+
+               'user_id' =>
+                   $this->owner->id,
+           ],
+       );
+   }
 
     public function test_outsider_cannot_list_task_comments(): void
     {

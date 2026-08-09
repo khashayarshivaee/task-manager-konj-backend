@@ -628,6 +628,262 @@ class TaskApiTest extends TestCase
         );
     }
 
+    public function test_new_task_assignee_receives_activity_notification(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner
+            );
+
+        $this->addMember(
+            $workspace,
+            $member
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner
+            );
+
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $member->id,
+
+                'added_by' =>
+                    $owner->id,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        $task = Task::query()->create([
+            'project_id' =>
+                $project->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'title' =>
+                'Notification Task',
+
+            'status' =>
+                TaskStatus::Todo,
+
+            'priority' =>
+                TaskPriority::Medium,
+
+            'position' =>
+                1,
+        ]);
+
+        Sanctum::actingAs(
+            $owner
+        );
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$task->id}",
+            [
+                'title' =>
+                    'Notification Task',
+
+                'description' =>
+                    null,
+
+                'status' =>
+                    TaskStatus::Todo->value,
+
+                'priority' =>
+                    TaskPriority::Medium->value,
+
+                'assigned_to' =>
+                    $member->id,
+
+                'starts_at' =>
+                    null,
+
+                'due_at' =>
+                    null,
+            ]
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_assignees_changed',
+                )
+                ->where(
+                    'subject_id',
+                    $task->id,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
+    public function test_removed_task_assignee_does_not_receive_activity_notification(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner
+            );
+
+        $this->addMember(
+            $workspace,
+            $member
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner
+            );
+
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $member->id,
+
+                'added_by' =>
+                    $owner->id,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        $task = Task::query()->create([
+            'project_id' =>
+                $project->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'title' =>
+                'Removal Notification Task',
+
+            'status' =>
+                TaskStatus::Todo,
+
+            'priority' =>
+                TaskPriority::Medium,
+
+            'position' =>
+                1,
+
+            'assigned_to' =>
+                $member->id,
+        ]);
+
+        $task
+            ->assignees()
+            ->sync([
+                $member->id => [
+                    'assigned_by' =>
+                        $owner->id,
+                ],
+            ]);
+
+        Sanctum::actingAs(
+            $owner
+        );
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$task->id}",
+            [
+                'title' =>
+                    'Removal Notification Task',
+
+                'description' =>
+                    null,
+
+                'status' =>
+                    TaskStatus::Todo->value,
+
+                'priority' =>
+                    TaskPriority::Medium->value,
+
+                'assigned_to' =>
+                    null,
+
+                'starts_at' =>
+                    null,
+
+                'due_at' =>
+                    null,
+            ]
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_assignees_changed',
+                )
+                ->where(
+                    'subject_id',
+                    $task->id,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+            ],
+        );
+    }
+
     public function test_completed_timestamp_is_managed_when_status_changes(): void
     {
         $owner = User::factory()->create();

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
-
+use App\Services\ProjectActivityNotificationService;
 use App\Services\TaskDiscussionReadService;
 use Illuminate\Support\Facades\DB;
 use App\Enums\TaskPriority;
@@ -30,11 +30,12 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 class TaskController extends Controller
 {
- public function __construct(
-     private readonly TaskDiscussionReadService $discussionRead,
-     private readonly ProjectActivityLogger $activityLogger,
- ) {
- }
+public function __construct(
+    private readonly TaskDiscussionReadService $discussionRead,
+    private readonly ProjectActivityLogger $activityLogger,
+    private readonly ProjectActivityNotificationService $activityNotifications,
+) {
+}
  /**
   * Get paginated tasks belonging to a project.
   */
@@ -556,23 +557,32 @@ $task = $this->loadTaskForResponse(
               )
           );
 
-          $this->activityLogger->log(
-              project: $project,
-              type:
-                  ProjectActivityType::TaskAssigneesChanged,
-              actor: $request->user(),
-              subjectType:
-                  ProjectActivitySubjectType::Task,
-              subjectId: $task->id,
-              subjectLabel: $task->title,
-              metadata: [
-                  'added' =>
-                      $addedAssignees,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::TaskAssigneesChanged,
+                actor: $request->user(),
+                subjectType:
+                    ProjectActivitySubjectType::Task,
+                subjectId: $task->id,
+                subjectLabel: $task->title,
+                metadata: [
+                    'added' =>
+                        $addedAssignees,
 
-                  'removed' =>
-                      $removedAssignees,
-              ],
-          );
+                    'removed' =>
+                        $removedAssignees,
+                ],
+            );
+
+        $this->activityNotifications->notify(
+            $activity,
+            array_column(
+                $addedAssignees,
+                'id',
+            ),
+        );
       }
 
 

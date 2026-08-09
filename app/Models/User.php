@@ -174,6 +174,17 @@ class User extends Authenticatable
          ->withTimestamps();
  }
 
+ /**
+  * Get activity notifications for the user.
+  */
+ public function activityRecipients(): HasMany
+ {
+     return $this->hasMany(
+         ProjectActivityRecipient::class,
+         'user_id',
+     );
+ }
+
     protected function casts(): array
     {
         return [

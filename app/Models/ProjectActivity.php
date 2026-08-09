@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Enums\ProjectActivitySubjectType;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 class ProjectActivity extends Model
 {
     protected $fillable = [
@@ -46,6 +47,16 @@ class ProjectActivity extends Model
         return $this->belongsTo(
             User::class,
             'actor_id',
+        );
+    }
+    /**
+     * @return HasMany<ProjectActivityRecipient, $this>
+     */
+    public function recipients(): HasMany
+    {
+        return $this->hasMany(
+            ProjectActivityRecipient::class,
+            'project_activity_id',
         );
     }
 }

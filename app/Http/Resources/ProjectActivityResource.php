@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\ProjectActivity;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,51 +13,65 @@ class ProjectActivityResource extends JsonResource
     /**
      * @return array<string, mixed>
      */
-    public function toArray(
-        Request $request
+    public static function payload(
+        ProjectActivity $activity,
     ): array {
         return [
             'id' =>
-                $this->id,
+                $activity->id,
 
             'project_id' =>
-                $this->project_id,
+                $activity->project_id,
 
             'type' =>
-                $this->type->value,
+                $activity->type->value,
 
             'subject_type' =>
-                $this->subject_type?->value,
+                $activity->subject_type?->value,
 
             'subject_id' =>
-                $this->subject_id,
+                $activity->subject_id,
 
             'subject_label' =>
-                $this->subject_label,
+                $activity->subject_label,
 
             'metadata' =>
-                $this->metadata,
+                $activity->metadata,
 
             'created_at' =>
-                $this->created_at,
+                $activity->created_at,
 
             'actor' =>
-                $this->actor === null
+                $activity->actor === null
                     ? null
                     : [
                         'id' =>
-                            $this->actor->id,
+                            $activity->actor->id,
 
                         'name' =>
-                            $this->actor->name,
+                            $activity->actor->name,
 
                         'email' =>
-                            $this->actor->email,
+                            $activity->actor->email,
 
                         'avatar_path' =>
-                            $this->actor
+                            $activity->actor
                                 ->avatar_path,
                     ],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(
+        Request $request,
+    ): array {
+        /** @var ProjectActivity $activity */
+        $activity = $this->resource;
+
+        return self::payload(
+            $activity,
+        );
     }
 }

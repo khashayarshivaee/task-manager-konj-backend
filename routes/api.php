@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProjectActivityController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskWatcherController;
@@ -82,6 +83,52 @@ Route::prefix('profile')
             ],
         );
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifications
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('notifications')
+        ->middleware([
+            'auth:sanctum',
+            EnsureUserIsActive::class,
+        ])
+        ->group(function (): void {
+            Route::get(
+                '/',
+                [
+                    NotificationController::class,
+                    'index',
+                ],
+            );
+
+            Route::get(
+                '/unread-count',
+                [
+                    NotificationController::class,
+                    'unreadCount',
+                ],
+            );
+
+            Route::patch(
+                '/read-all',
+                [
+                    NotificationController::class,
+                    'readAll',
+                ],
+            );
+
+            Route::patch(
+                '/{notification}/read',
+                [
+                    NotificationController::class,
+                    'read',
+                ],
+
+            );
+        });
 
 Route::prefix('workspaces')
     ->middleware([
