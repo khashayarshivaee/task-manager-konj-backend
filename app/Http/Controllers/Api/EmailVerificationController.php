@@ -20,7 +20,7 @@ class EmailVerificationController extends Controller
         Request $request,
         int $id,
         string $hash,
-    ): JsonResponse {
+    ): Response {
         $user = User::query()->findOrFail($id);
 
         if (
@@ -31,30 +31,81 @@ class EmailVerificationController extends Controller
                 ),
             )
         ) {
-            return response()->json([
-                'message' => 'Invalid verification link.',
-            ], Response::HTTP_FORBIDDEN);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' =>
+                        'Invalid verification link.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            return response()->view(
+                'auth.email-verification-result',
+                [
+                    'verified' => false,
+
+                    'title' =>
+                        'Verification link is invalid',
+
+                    'message' =>
+                        'This verification link is invalid or can no longer be used.',
+                ],
+                Response::HTTP_FORBIDDEN,
+            );
         }
 
         if ($user->hasVerifiedEmail()) {
-            return response()->json([
-                'message' => 'Email address is already verified.',
-                'data' => [
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' =>
+                        'Email address is already verified.',
+
+                    'data' => [
+                        'verified' => true,
+                    ],
+                ]);
+            }
+
+            return response()->view(
+                'auth.email-verification-result',
+                [
                     'verified' => true,
+
+                    'title' =>
+                        'Email already verified',
+
+                    'message' =>
+                        'Your email address has already been verified. Your account is ready to use.',
                 ],
-            ]);
+            );
         }
 
         if ($user->markEmailAsVerified()) {
             event(new Verified($user));
         }
 
-        return response()->json([
-            'message' => 'Email address verified successfully.',
-            'data' => [
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' =>
+                    'Email address verified successfully.',
+
+                'data' => [
+                    'verified' => true,
+                ],
+            ]);
+        }
+
+        return response()->view(
+            'auth.email-verification-result',
+            [
                 'verified' => true,
+
+                'title' =>
+                    'Email verified',
+
+                'message' =>
+                    'Your email address has been verified successfully. Your Konj account is ready.',
             ],
-        ]);
+        );
     }
 
     /**
@@ -68,17 +119,22 @@ class EmailVerificationController extends Controller
 
         if ($user->hasVerifiedEmail()) {
             return response()->json([
-                'message' => 'Email address is already verified.',
+                'message' =>
+                    'Email address is already verified.',
+
                 'data' => [
                     'verified' => true,
                 ],
             ]);
         }
 
-        $user->sendEmailVerificationNotification();
+        $user
+            ->sendEmailVerificationNotification();
 
         return response()->json([
-            'message' => 'Verification email sent successfully.',
+            'message' =>
+                'Verification email sent successfully.',
+
             'data' => [
                 'verified' => false,
             ],
