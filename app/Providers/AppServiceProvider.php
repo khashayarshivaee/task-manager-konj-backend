@@ -28,6 +28,26 @@ class AppServiceProvider extends ServiceProvider
                 object $notifiable,
                 string $url,
             ): MailMessage {
+                $frontendUrl = rtrim(
+                    (string) config(
+                        'app.frontend_url'
+                    ),
+                    '/',
+                );
+
+                $verificationUrl =
+                    $frontendUrl
+                    . '/email/verify?'
+                    . http_build_query(
+                        [
+                            'verification_url' =>
+                                $url,
+                        ],
+                        '',
+                        '&',
+                        PHP_QUERY_RFC3986,
+                    );
+
                 return (new MailMessage)
                     ->subject(
                         'Verify your email | Konj Task Manager'
@@ -35,13 +55,15 @@ class AppServiceProvider extends ServiceProvider
                     ->view(
                         'emails.verify-email',
                         [
-                            'userName' => (string) data_get(
-                                $notifiable,
-                                'name',
-                                'there',
-                            ),
+                            'userName' =>
+                                (string) data_get(
+                                    $notifiable,
+                                    'name',
+                                    'there',
+                                ),
 
-                            'verificationUrl' => $url,
+                            'verificationUrl' =>
+                                $verificationUrl,
                         ],
                     );
             },
