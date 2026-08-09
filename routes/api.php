@@ -1,29 +1,37 @@
 <?php
 
 declare(strict_types=1);
-use App\Http\Controllers\Api\ProjectTaskSummaryController;
-use App\Http\Controllers\Api\WorkspaceMemberController;
+
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\EmailVerificationController;
+use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ProjectActivityController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ProjectMemberController;
+use App\Http\Controllers\Api\ProjectTaskCalendarController;
+use App\Http\Controllers\Api\ProjectTaskSummaryController;
 use App\Http\Controllers\Api\TaskAttachmentController;
 use App\Http\Controllers\Api\TaskCommentAttachmentController;
-use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\TaskCommentController;
+use App\Http\Controllers\Api\TaskCommentReadController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Controllers\Api\WorkspaceDashboardController;
+use App\Http\Controllers\Api\WorkspaceMemberController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\ProjectActivityController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\TaskWatcherController;
-use App\Http\Controllers\Api\WorkspaceDashboardController;
-use App\Http\Controllers\Api\ProjectTaskCalendarController;
-use App\Http\Controllers\Api\TaskCommentReadController;
-use App\Http\Controllers\Api\ProjectMemberController;
-use App\Http\Controllers\Api\EmailVerificationController;
+
+/*
+|--------------------------------------------------------------------------
+| Authentication
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -41,6 +49,17 @@ Route::prefix('auth')->group(function (): void {
         ],
     )->middleware('throttle:10,1');
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | This route does not require Sanctum because the user may open
+    | the verification email on another browser or device.
+    | The signed middleware protects the verification URL.
+    |
+    */
+
     Route::get(
         '/email/verify/{id}/{hash}',
         [
@@ -53,6 +72,19 @@ Route::prefix('auth')->group(function (): void {
             'throttle:10,1',
         ])
         ->name('verification.verify');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authenticated User Routes
+    |--------------------------------------------------------------------------
+    |
+    | These routes intentionally do NOT require email verification.
+    | An unverified user must still be able to:
+    | - load their account
+    | - resend verification
+    | - logout
+    |
+    */
 
     Route::middleware([
         'auth:sanctum',
@@ -86,10 +118,17 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
+/*
+|--------------------------------------------------------------------------
+| Profile
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('profile')
     ->middleware([
         'auth:sanctum',
         EnsureUserIsActive::class,
+        'verified',
     ])
     ->group(function (): void {
         Route::post(
@@ -109,74 +148,82 @@ Route::prefix('profile')
         );
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Notifications
-    |--------------------------------------------------------------------------
-    */
+/*
+|--------------------------------------------------------------------------
+| Notifications
+|--------------------------------------------------------------------------
+*/
 
-    Route::prefix('notifications')
-        ->middleware([
-            'auth:sanctum',
-            EnsureUserIsActive::class,
-        ])
-        ->group(function (): void {
-            Route::get(
-                '/',
-                [
-                    NotificationController::class,
-                    'index',
-                ],
-            );
-
-            Route::get(
-                '/unread-count',
-                [
-                    NotificationController::class,
-                    'unreadCount',
-                ],
-            );
-
-            Route::patch(
-                '/read-all',
-                [
-                    NotificationController::class,
-                    'readAll',
-                ],
-            );
-
-            Route::patch(
-                '/{notification}/read',
-                [
-                    NotificationController::class,
-                    'read',
-                ],
-
-            );
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Global Search
-        |--------------------------------------------------------------------------
-        */
-
+Route::prefix('notifications')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ])
+    ->group(function (): void {
         Route::get(
-            '/search',
+            '/',
             [
-                GlobalSearchController::class,
+                NotificationController::class,
                 'index',
             ],
-        )
-            ->middleware([
-                'auth:sanctum',
-                EnsureUserIsActive::class,
-            ]);
+        );
+
+        Route::get(
+            '/unread-count',
+            [
+                NotificationController::class,
+                'unreadCount',
+            ],
+        );
+
+        Route::patch(
+            '/read-all',
+            [
+                NotificationController::class,
+                'readAll',
+            ],
+        );
+
+        Route::patch(
+            '/{notification}/read',
+            [
+                NotificationController::class,
+                'read',
+            ],
+        );
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Global Search
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/search',
+    [
+        GlobalSearchController::class,
+        'index',
+    ],
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ]);
+
+/*
+|--------------------------------------------------------------------------
+| Workspaces
+|--------------------------------------------------------------------------
+*/
 
 Route::prefix('workspaces')
     ->middleware([
         'auth:sanctum',
         EnsureUserIsActive::class,
+        'verified',
     ])
     ->group(function (): void {
         Route::get(
@@ -210,8 +257,6 @@ Route::prefix('workspaces')
                 'destroy',
             ],
         );
-
-
 
         /*
         |--------------------------------------------------------------------------
@@ -311,20 +356,19 @@ Route::prefix('workspaces')
             ],
         );
 
-         /*
-                |--------------------------------------------------------------------------
-                | activity
-                |--------------------------------------------------------------------------
-                */
-                Route::get(
-                    '/{workspace}/projects/{project}/activities',
-                    [
-                        ProjectActivityController::class,
-                        'index',
-                    ],
-                );
+        /*
+        |--------------------------------------------------------------------------
+        | Project Activity
+        |--------------------------------------------------------------------------
+        */
 
-
+        Route::get(
+            '/{workspace}/projects/{project}/activities',
+            [
+                ProjectActivityController::class,
+                'index',
+            ],
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -466,29 +510,35 @@ Route::prefix('workspaces')
             ],
         );
 
-      Route::get(
-          '/{workspace}/projects/{project}/tasks/{task}/watchers',
-          [
-              TaskWatcherController::class,
-              'index',
-          ],
-      );
+        /*
+        |--------------------------------------------------------------------------
+        | Task Watchers
+        |--------------------------------------------------------------------------
+        */
 
-      Route::post(
-          '/{workspace}/projects/{project}/tasks/{task}/watch',
-          [
-              TaskWatcherController::class,
-              'store',
-          ],
-      );
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/{task}/watchers',
+            [
+                TaskWatcherController::class,
+                'index',
+            ],
+        );
 
-      Route::delete(
-          '/{workspace}/projects/{project}/tasks/{task}/watch',
-          [
-              TaskWatcherController::class,
-              'destroy',
-          ],
-      );
+        Route::post(
+            '/{workspace}/projects/{project}/tasks/{task}/watch',
+            [
+                TaskWatcherController::class,
+                'store',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/projects/{project}/tasks/{task}/watch',
+            [
+                TaskWatcherController::class,
+                'destroy',
+            ],
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -556,10 +606,17 @@ Route::prefix('workspaces')
         );
     });
 
+/*
+|--------------------------------------------------------------------------
+| Admin
+|--------------------------------------------------------------------------
+*/
+
 Route::prefix('admin')
     ->middleware([
         'auth:sanctum',
         EnsureUserIsActive::class,
+        'verified',
         EnsureUserIsAdmin::class,
     ])
     ->group(function (): void {
