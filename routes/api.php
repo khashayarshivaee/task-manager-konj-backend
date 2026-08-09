@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskAttachmentController;
 use App\Http\Controllers\Api\TaskCommentAttachmentController;
+use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\TaskCommentController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\WorkspaceController;
@@ -130,6 +131,24 @@ Route::prefix('profile')
             );
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Global Search
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/search',
+            [
+                GlobalSearchController::class,
+                'index',
+            ],
+        )
+            ->middleware([
+                'auth:sanctum',
+                EnsureUserIsActive::class,
+            ]);
+
 Route::prefix('workspaces')
     ->middleware([
         'auth:sanctum',
@@ -167,6 +186,8 @@ Route::prefix('workspaces')
                 'destroy',
             ],
         );
+
+
 
         /*
         |--------------------------------------------------------------------------
