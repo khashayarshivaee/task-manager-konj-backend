@@ -16,10 +16,23 @@ final class ProjectActivityNotificationResource extends JsonResource
     public static function payload(
         ProjectActivityRecipient $recipient,
     ): array {
+        $recipient->loadMissing([
+            'activity.actor:id,name,email,avatar_path',
+            'activity.project:id,workspace_id',
+        ]);
+
+        $activity =
+            $recipient->activity;
+
         return [
             ...ProjectActivityResource::payload(
-                $recipient->activity,
+                $activity,
             ),
+
+            'workspace_id' =>
+                (int) $activity
+                    ->project
+                    ->workspace_id,
 
             'notification' => [
                 'id' =>
@@ -34,17 +47,11 @@ final class ProjectActivityNotificationResource extends JsonResource
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function toArray(
-        Request $request,
-    ): array {
+    public function toArray(Request $request): array
+    {
         /** @var ProjectActivityRecipient $recipient */
         $recipient = $this->resource;
 
-        return self::payload(
-            $recipient,
-        );
+        return self::payload($recipient);
     }
 }
