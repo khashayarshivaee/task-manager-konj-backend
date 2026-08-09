@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\WorkspaceDashboardController;
 use App\Http\Controllers\Api\ProjectTaskCalendarController;
 use App\Http\Controllers\Api\TaskCommentReadController;
 use App\Http\Controllers\Api\ProjectMemberController;
+use App\Http\Controllers\Api\EmailVerificationController;
 Route::prefix('auth')->group(function (): void {
     Route::post(
         '/register',
@@ -40,6 +41,19 @@ Route::prefix('auth')->group(function (): void {
         ],
     )->middleware('throttle:10,1');
 
+    Route::get(
+        '/email/verify/{id}/{hash}',
+        [
+            EmailVerificationController::class,
+            'verify',
+        ],
+    )
+        ->middleware([
+            'signed',
+            'throttle:10,1',
+        ])
+        ->name('verification.verify');
+
     Route::middleware([
         'auth:sanctum',
         EnsureUserIsActive::class,
@@ -51,6 +65,16 @@ Route::prefix('auth')->group(function (): void {
                 'me',
             ],
         );
+
+        Route::post(
+            '/email/verification-notification',
+            [
+                EmailVerificationController::class,
+                'resend',
+            ],
+        )
+            ->middleware('throttle:3,1')
+            ->name('verification.send');
 
         Route::post(
             '/logout',

@@ -10,7 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Auth\Events\Registered;
 class AuthController extends Controller
 {
     /**
@@ -25,6 +25,7 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => $validated['password'],
         ]);
+        event(new Registered($user));
 
         $accessToken = $user
             ->createToken($validated['device_name'])
