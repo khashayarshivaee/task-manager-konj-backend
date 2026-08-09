@@ -38,6 +38,9 @@ class TaskController extends Controller
  /**
   * Get paginated tasks belonging to a project.
   */
+ /**
+  * Get paginated tasks belonging to a project.
+  */
  public function index(
      ListProjectTasksRequest $request,
      Workspace $workspace,
@@ -53,7 +56,6 @@ class TaskController extends Controller
          $workspace
      );
 
-     $validated = $request->validated();
      $user = $request->user();
 
      abort_unless(
@@ -61,120 +63,75 @@ class TaskController extends Controller
          Response::HTTP_UNAUTHORIZED,
      );
 
- $query = $project
-     ->tasks()
-     ->getQuery()
-     ->withUnreadCommentsCount(
-         $user->id,
-     )
-     ->with([
-          'creator:id,name,email,avatar_path',
+     $query = $project
+         ->tasks()
+         ->getQuery()
+         ->withUnreadCommentsCount(
+             $user->id,
+         )
+         ->with([
+             'creator:id,name,email,avatar_path',
 
-          'assignee:id,name,email,avatar_path',
+             'assignee:id,name,email,avatar_path',
 
-          'assignees:id,name,email,avatar_path',
-      ]);
+             'assignees:id,name,email,avatar_path',
+         ]);
 
-     if (!empty($validated['search'])) {
-         $search =
-             (string) $validated['search'];
+     return $this->paginateTaskList(
+         $query,
+         $request->validated()
+     );
+ }
 
-         $query->where(
+ /**
+  * Get paginated tasks belonging to
+  * all projects inside a workspace.
+  */
+ public function workspaceIndex(
+     ListProjectTasksRequest $request,
+     Workspace $workspace
+ ): JsonResponse {
+     Gate::authorize(
+         'view',
+         $workspace
+     );
+
+     $user = $request->user();
+
+     abort_unless(
+         $user instanceof User,
+         Response::HTTP_UNAUTHORIZED,
+     );
+
+     $query = Task::query()
+         ->whereHas(
+             'project',
              function (
-                 Builder $taskQuery
-             ) use ($search): void {
-                 $taskQuery
-                     ->where(
-                         'title',
-                         'like',
-                         "%{$search}%"
-                     )
-                     ->orWhere(
-                         'description',
-                         'like',
-                         "%{$search}%"
-                     );
-             }
-         );
-     }
-
-     if (!empty($validated['status'])) {
-         $query->where(
-             'status',
-             $validated['status']
-         );
-     }
-
-     if (!empty($validated['priority'])) {
-         $query->where(
-             'priority',
-             $validated['priority']
-         );
-     }
-
-     if (!empty($validated['assignee'])) {
-         $assigneeId =
-             (int) $validated['assignee'];
-
-         $query->whereHas(
-             'assignees',
-             function (
-                 Builder $assigneeQuery
-             ) use ($assigneeId): void {
-                 $assigneeQuery->where(
-                     'users.id',
-                     $assigneeId
+                 Builder $projectQuery
+             ) use ($workspace): void {
+                 $projectQuery->where(
+                     'workspace_id',
+                     $workspace->id
                  );
              }
-         );
-     }
+         )
+         ->withUnreadCommentsCount(
+             $user->id,
+         )
+         ->with([
+             'project:id,workspace_id,name,slug,status,color',
 
-     $this->applyTaskDueFilter(
+             'creator:id,name,email,avatar_path',
+
+             'assignee:id,name,email,avatar_path',
+
+             'assignees:id,name,email,avatar_path',
+         ]);
+
+     return $this->paginateTaskList(
          $query,
-         $validated['due'] ?? null
+         $request->validated()
      );
-
-     $this->applyTaskListSorting(
-         $query,
-         (string) $validated['sort'],
-         (string) $validated['direction']
-     );
-
-     $tasks = $query->paginate(
-         (int) $validated['per_page'],
-         ['*'],
-         'page',
-         (int) $validated['page']
-     );
-
-     return response()->json([
-         'data' => [
-             'tasks' => $tasks->items(),
-         ],
-
-         'meta' => [
-             'current_page' =>
-                 $tasks->currentPage(),
-
-             'per_page' =>
-                 $tasks->perPage(),
-
-             'total' =>
-                 $tasks->total(),
-
-             'last_page' =>
-                 $tasks->lastPage(),
-
-             'from' =>
-                 $tasks->firstItem(),
-
-             'to' =>
-                 $tasks->lastItem(),
-
-             'has_more_pages' =>
-                 $tasks->hasMorePages(),
-         ],
-     ]);
  }
 
    /**
@@ -805,6 +762,118 @@ $task = $this->loadTaskForResponse(
         return response()->json([
             'message' =>
                 'Task deleted successfully.',
+        ]);
+    }
+    /**
+     * Apply task list filters, sorting and
+     * pagination to a prepared task query.
+     *
+     * @param array<string, mixed> $validated
+     */
+    private function paginateTaskList(
+        Builder $query,
+        array $validated
+    ): JsonResponse {
+        if (!empty($validated['search'])) {
+            $search =
+                (string) $validated['search'];
+
+            $query->where(
+                function (
+                    Builder $taskQuery
+                ) use ($search): void {
+                    $taskQuery
+                        ->where(
+                            'title',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'description',
+                            'like',
+                            "%{$search}%"
+                        );
+                }
+            );
+        }
+
+        if (!empty($validated['status'])) {
+            $query->where(
+                'status',
+                $validated['status']
+            );
+        }
+
+        if (!empty($validated['priority'])) {
+            $query->where(
+                'priority',
+                $validated['priority']
+            );
+        }
+
+        if (!empty($validated['assignee'])) {
+            $assigneeId =
+                (int) $validated['assignee'];
+
+            $query->whereHas(
+                'assignees',
+                function (
+                    Builder $assigneeQuery
+                ) use ($assigneeId): void {
+                    $assigneeQuery->where(
+                        'users.id',
+                        $assigneeId
+                    );
+                }
+            );
+        }
+
+        $this->applyTaskDueFilter(
+            $query,
+            $validated['due'] ?? null
+        );
+
+        $this->applyTaskListSorting(
+            $query,
+            (string) $validated['sort'],
+            (string) $validated['direction']
+        );
+
+        $tasks = $query->paginate(
+            (int) $validated['per_page'],
+            ['*'],
+            'page',
+            (int) $validated['page']
+        );
+
+        return response()->json([
+            'data' => [
+                'tasks' =>
+                    $tasks->items(),
+            ],
+
+            'meta' => [
+                'current_page' =>
+                    $tasks->currentPage(),
+
+                'per_page' =>
+                    $tasks->perPage(),
+
+                'total' =>
+                    $tasks->total(),
+
+                'last_page' =>
+                    $tasks->lastPage(),
+
+                'from' =>
+                    $tasks->firstItem(),
+
+                'to' =>
+                    $tasks->lastItem(),
+
+                'has_more_pages' =>
+                    $tasks->hasMorePages(),
+            ],
         ]);
     }
 

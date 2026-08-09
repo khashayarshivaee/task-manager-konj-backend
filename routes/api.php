@@ -271,6 +271,14 @@ Route::prefix('workspaces')
         */
 
         Route::get(
+            '/{workspace}/tasks',
+            [
+                TaskController::class,
+                'workspaceIndex',
+            ],
+        );
+
+        Route::get(
             '/{workspace}/projects/{project}/tasks',
             [
                 TaskController::class,
