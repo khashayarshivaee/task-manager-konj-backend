@@ -24,9 +24,16 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
 
 class TaskCommentController extends Controller
 {
+    public function __construct(
+        private readonly ProjectActivityLogger $activityLogger,
+    ) {
+    }
     public function index(
         Workspace $workspace,
         Project $project,
@@ -259,6 +266,32 @@ public function store(
 
             'repliesRecursive',
         ]);
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::CommentCreated,
+            actor: $user,
+            subjectType:
+                ProjectActivitySubjectType::Comment,
+            subjectId: $comment->id,
+            subjectLabel:
+                $this->commentActivityLabel(
+                    $comment
+                ),
+            metadata: [
+                'task_id' =>
+                    $task->id,
+
+                'parent_id' =>
+                    $comment->parent_id,
+
+                'body' =>
+                    $comment->body,
+
+                'attachments_count' =>
+                    $comment->attachments->count(),
+            ],
+        );
         $commentPayload =
             (new TaskCommentResource(
                 $comment,
@@ -322,6 +355,8 @@ public function store(
             $comment,
             $user,
         );
+        $previousBody =
+            $comment->body;
 
         $body = $request->validated(
             'body',
@@ -352,6 +387,42 @@ public function store(
             'body' => $body,
             'edited_at' => now(),
         ])->save();
+
+        if (
+            $previousBody !==
+            $comment->body
+        ) {
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::CommentUpdated,
+                actor: $user,
+                subjectType:
+                    ProjectActivitySubjectType::Comment,
+                subjectId: $comment->id,
+                subjectLabel:
+                    $this->commentActivityLabel(
+                        $comment
+                    ),
+                metadata: [
+                    'task_id' =>
+                        $task->id,
+
+                    'parent_id' =>
+                        $comment->parent_id,
+
+                    'changes' => [
+                        'body' => [
+                            'from' =>
+                                $previousBody,
+
+                            'to' =>
+                                $comment->body,
+                        ],
+                    ],
+                ],
+            );
+        }
 
         $comment->load([
             'user:id,name,avatar_path',
@@ -433,6 +504,14 @@ public function store(
                 ? null
                 : (int) $comment->parent_id;
 
+                $commentBody =
+                    $comment->body;
+
+                $commentLabel =
+                    $this->commentActivityLabel(
+                        $comment
+                    );
+
         $attachments =
             $comment
                 ->attachments()
@@ -458,6 +537,27 @@ public function store(
                 $comment->delete();
             },
         );
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::CommentDeleted,
+            actor: $user,
+            subjectType:
+                ProjectActivitySubjectType::Comment,
+            subjectId: $commentId,
+            subjectLabel:
+                $commentLabel,
+            metadata: [
+                'task_id' =>
+                    $task->id,
+
+                'parent_id' =>
+                    $parentId,
+
+                'body' =>
+                    $commentBody,
+            ],
+        );
         $realtime->broadcastDeleted(
             (int) $workspace->id,
             (int) $project->id,
@@ -471,6 +571,22 @@ public function store(
             'message' =>
                 'Comment deleted successfully.',
         ]);
+    }
+    private function commentActivityLabel(
+        TaskComment $comment,
+    ): string {
+        $body = trim(
+            (string) $comment->body
+        );
+
+        if ($body === '') {
+            return 'Image comment';
+        }
+
+        return Str::limit(
+            $body,
+            120
+        );
     }
 
     private function resolveParentId(

@@ -149,6 +149,10 @@ class TaskCommentApiTest extends TestCase
                 'data.comment.author.id',
                 $this->owner->id,
             );
+            $commentId =
+                (int) $response->json(
+                    'data.comment.id',
+                );
 
         $this->assertDatabaseHas(
             'task_comments',
@@ -163,6 +167,26 @@ class TaskCommentApiTest extends TestCase
                     null,
 
                 'body' =>
+                    'This is the first task comment.',
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'actor_id' =>
+                    $this->owner->id,
+
+                'type' =>
+                    'comment_created',
+
+                'subject_type' =>
+                    'comment',
+
+                'subject_id' =>
+                    $commentId,
+
+                'subject_label' =>
                     'This is the first task comment.',
             ],
         );
@@ -423,6 +447,25 @@ class TaskCommentApiTest extends TestCase
         $this->assertNotNull(
             $comment->edited_at,
         );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'actor_id' =>
+                    $this->owner->id,
+
+                'type' =>
+                    'comment_updated',
+
+                'subject_type' =>
+                    'comment',
+
+                'subject_id' =>
+                    $commentId,
+
+                'subject_label' =>
+                    'Updated comment',
+            ],
+        );
     }
 
     public function test_member_cannot_edit_another_users_comment(): void
@@ -508,6 +551,25 @@ class TaskCommentApiTest extends TestCase
             [
                 'id' =>
                     $commentId,
+            ],
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'actor_id' =>
+                    $this->owner->id,
+
+                'type' =>
+                    'comment_deleted',
+
+                'subject_type' =>
+                    'comment',
+
+                'subject_id' =>
+                    $commentId,
+
+                'subject_label' =>
+                    'Member comment',
             ],
         );
     }
@@ -710,6 +772,25 @@ class TaskCommentApiTest extends TestCase
 
                 'body' =>
                     'The text will remain.',
+            ],
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'actor_id' =>
+                    $this->owner->id,
+
+                'type' =>
+                    'comment_attachment_removed',
+
+                'subject_type' =>
+                    'comment_attachment',
+
+                'subject_id' =>
+                    $attachmentId,
+
+                'subject_label' =>
+                    'removable.jpg',
             ],
         );
     }

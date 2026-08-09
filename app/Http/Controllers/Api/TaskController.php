@@ -19,6 +19,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 use App\Http\Requests\Task\UpdateTaskStatusRequest;
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
+use Illuminate\Http\Request;
 
 use App\Http\Requests\Task\ListProjectTasksRequest;
 use Carbon\CarbonImmutable;
@@ -26,10 +30,11 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 class TaskController extends Controller
 {
-    public function __construct(
-        private readonly TaskDiscussionReadService $discussionRead,
-    ) {
-    }
+ public function __construct(
+     private readonly TaskDiscussionReadService $discussionRead,
+     private readonly ProjectActivityLogger $activityLogger,
+ ) {
+ }
  /**
   * Get paginated tasks belonging to a project.
   */
@@ -275,6 +280,34 @@ class TaskController extends Controller
         $task,
         (int) $request->user()->id,
     );
+    $this->activityLogger->log(
+              project: $project,
+              type:
+                  ProjectActivityType::TaskCreated,
+              actor: $request->user(),
+              subjectType:
+                  ProjectActivitySubjectType::Task,
+              subjectId: $task->id,
+              subjectLabel: $task->title,
+              metadata: [
+                  'status' =>
+                      $task->status->value,
+
+                  'priority' =>
+                      $task->priority->value,
+
+                  'assignees' =>
+                      $task->assignees
+                          ->map(
+                              fn (User $user): array => [
+                                  'id' => $user->id,
+                                  'name' => $user->name,
+                              ]
+                          )
+                          ->values()
+                          ->all(),
+              ],
+          );
 
        return response()->json([
            'message' =>
@@ -351,6 +384,15 @@ $task = $this->loadTaskForResponse(
        );
 
        $validated = $request->validated();
+       $beforeState =
+           $this->taskActivityState(
+               $task
+           );
+
+       $beforeAssignees =
+           $this->taskAssigneeActivityState(
+               $task
+           );
 
        $status = TaskStatus::from(
            $validated['status']
@@ -444,6 +486,139 @@ $task = $this->loadTaskForResponse(
           (int) $request->user()->id,
       );
 
+      $afterState =
+          $this->taskActivityState(
+              $task
+          );
+
+      $afterAssignees =
+          $this->taskAssigneeActivityState(
+              $task
+          );
+
+      $taskChanges = [];
+
+      foreach (
+          [
+              'title',
+              'description',
+              'priority',
+              'starts_at',
+              'due_at',
+          ] as $field
+      ) {
+          if (
+              $beforeState[$field] ===
+              $afterState[$field]
+          ) {
+              continue;
+          }
+
+          $taskChanges[$field] = [
+              'from' =>
+                  $beforeState[$field],
+
+              'to' =>
+                  $afterState[$field],
+          ];
+      }
+
+      if ($taskChanges !== []) {
+          $this->activityLogger->log(
+              project: $project,
+              type:
+                  ProjectActivityType::TaskUpdated,
+              actor: $request->user(),
+              subjectType:
+                  ProjectActivitySubjectType::Task,
+              subjectId: $task->id,
+              subjectLabel: $task->title,
+              metadata: [
+                  'changes' =>
+                      $taskChanges,
+              ],
+          );
+      }
+      if (
+          $beforeState['status'] !==
+          $afterState['status']
+      ) {
+          $this->activityLogger->log(
+              project: $project,
+              type:
+                  ProjectActivityType::TaskStatusChanged,
+              actor: $request->user(),
+              subjectType:
+                  ProjectActivitySubjectType::Task,
+              subjectId: $task->id,
+              subjectLabel: $task->title,
+              metadata: [
+                  'from' =>
+                      $beforeState['status'],
+
+                  'to' =>
+                      $afterState['status'],
+              ],
+          );
+      }
+      $beforeAssigneeIds = array_column(
+          $beforeAssignees,
+          'id'
+      );
+
+      $afterAssigneeIds = array_column(
+          $afterAssignees,
+          'id'
+      );
+
+      if (
+          $beforeAssigneeIds !==
+          $afterAssigneeIds
+      ) {
+          $addedAssignees = array_values(
+              array_filter(
+                  $afterAssignees,
+                  static fn (array $assignee): bool =>
+                      !in_array(
+                          $assignee['id'],
+                          $beforeAssigneeIds,
+                          true
+                      )
+              )
+          );
+
+          $removedAssignees = array_values(
+              array_filter(
+                  $beforeAssignees,
+                  static fn (array $assignee): bool =>
+                      !in_array(
+                          $assignee['id'],
+                          $afterAssigneeIds,
+                          true
+                      )
+              )
+          );
+
+          $this->activityLogger->log(
+              project: $project,
+              type:
+                  ProjectActivityType::TaskAssigneesChanged,
+              actor: $request->user(),
+              subjectType:
+                  ProjectActivitySubjectType::Task,
+              subjectId: $task->id,
+              subjectLabel: $task->title,
+              metadata: [
+                  'added' =>
+                      $addedAssignees,
+
+                  'removed' =>
+                      $removedAssignees,
+              ],
+          );
+      }
+
+
        return response()->json([
            'message' =>
                'Task updated successfully.',
@@ -483,6 +658,9 @@ $task = $this->loadTaskForResponse(
        $status = TaskStatus::from(
            $validated['status']
        );
+
+       $previousStatus =
+           $task->status->value;
 
        $position = $task->position;
 
@@ -538,6 +716,28 @@ $task = $this->loadTaskForResponse(
          $task,
          (int) $request->user()->id,
      );
+     if (
+         $previousStatus !==
+         $task->status->value
+     ) {
+         $this->activityLogger->log(
+             project: $project,
+             type:
+                 ProjectActivityType::TaskStatusChanged,
+             actor: $request->user(),
+             subjectType:
+                 ProjectActivitySubjectType::Task,
+             subjectId: $task->id,
+             subjectLabel: $task->title,
+             metadata: [
+                 'from' =>
+                     $previousStatus,
+
+                 'to' =>
+                     $task->status->value,
+             ],
+         );
+     }
 
        return response()->json([
            'message' =>
@@ -553,6 +753,7 @@ $task = $this->loadTaskForResponse(
      * Delete a task.
      */
     public function destroy(
+        Request $request,
         Workspace $workspace,
         Project $project,
         Task $task
@@ -572,16 +773,38 @@ $task = $this->loadTaskForResponse(
             $workspace
         );
 
+        $user = $request->user();
+
+        abort_unless(
+            $user instanceof User,
+            Response::HTTP_UNAUTHORIZED,
+        );
+
         $this->authorizeTaskDeletion(
-            request()->user(),
+            $user,
             $workspace,
             $task
         );
 
+        $taskId = $task->id;
+        $taskTitle = $task->title;
+
         $task->delete();
 
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::TaskDeleted,
+            actor: $user,
+            subjectType:
+                ProjectActivitySubjectType::Task,
+            subjectId: $taskId,
+            subjectLabel: $taskTitle,
+        );
+
         return response()->json([
-            'message' => 'Task deleted successfully.',
+            'message' =>
+                'Task deleted successfully.',
         ]);
     }
 
@@ -875,6 +1098,76 @@ $task = $this->loadTaskForResponse(
             ->max('position');
 
         return $maximumPosition + 1;
+    }
+
+    /**
+     * Get values tracked by the task
+     * activity timeline.
+     *
+     * @return array<string, mixed>
+     */
+    private function taskActivityState(
+        Task $task
+    ): array {
+        return [
+            'title' =>
+                $task->getRawOriginal(
+                    'title'
+                ),
+
+            'description' =>
+                $task->getRawOriginal(
+                    'description'
+                ),
+
+            'status' =>
+                $task->getRawOriginal(
+                    'status'
+                ),
+
+            'priority' =>
+                $task->getRawOriginal(
+                    'priority'
+                ),
+
+            'starts_at' =>
+                $task->getRawOriginal(
+                    'starts_at'
+                ),
+
+            'due_at' =>
+                $task->getRawOriginal(
+                    'due_at'
+                ),
+        ];
+    }
+    /**
+     * Get the task assignees tracked
+     * by the activity timeline.
+     *
+     * @return array<int, array{
+     *     id: int,
+     *     name: string
+     * }>
+     */
+    private function taskAssigneeActivityState(
+        Task $task
+    ): array {
+        return $task
+            ->assignees()
+            ->orderBy('users.id')
+            ->get([
+                'users.id',
+                'users.name',
+            ])
+            ->map(
+                static fn (User $user): array => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                ]
+            )
+            ->values()
+            ->all();
     }
 
     private function ensureProjectBelongsToWorkspace(

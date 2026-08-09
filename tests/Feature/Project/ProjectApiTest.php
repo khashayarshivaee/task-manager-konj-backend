@@ -12,7 +12,7 @@ use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
-
+use App\Models\ProjectActivity;
 class ProjectApiTest extends TestCase
 {
     use RefreshDatabase;
@@ -260,6 +260,73 @@ class ProjectApiTest extends TestCase
             'slug' => 'updated-project',
             'status' => ProjectStatus::Active->value,
         ]);
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $owner->id,
+
+                'type' =>
+                    'project_updated',
+
+                'subject_type' =>
+                    'project',
+
+                'subject_id' =>
+                    $project->id,
+
+                'subject_label' =>
+                    'Updated Project',
+            ]
+        );
+
+        $activity = ProjectActivity::query()
+            ->where(
+                'project_id',
+                $project->id
+            )
+            ->where(
+                'type',
+                'project_updated'
+            )
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(
+            'Old Project',
+            data_get(
+                $activity->metadata,
+                'changes.name.from'
+            )
+        );
+
+        $this->assertSame(
+            'Updated Project',
+            data_get(
+                $activity->metadata,
+                'changes.name.to'
+            )
+        );
+
+        $this->assertSame(
+            ProjectStatus::Planning->value,
+            data_get(
+                $activity->metadata,
+                'changes.status.from'
+            )
+        );
+
+        $this->assertSame(
+            ProjectStatus::Active->value,
+            data_get(
+                $activity->metadata,
+                'changes.status.to'
+            )
+        );
     }
 
     public function test_member_cannot_update_project(): void
@@ -433,23 +500,46 @@ class ProjectApiTest extends TestCase
             'created_by' => $owner->id,
             'slug' => 'task-manager-frontend',
         ]);
+
+        $projectId = Project::query()
+            ->where(
+                'workspace_id',
+                $workspace->id
+            )
+            ->where(
+                'slug',
+                'task-manager-frontend'
+            )
+            ->value('id');
         $this->assertDatabaseHas(
             'project_memberships',
             [
-                'project_id' => Project::query()
-                    ->where(
-                        'workspace_id',
-                        $workspace->id
-                    )
-                    ->where(
-                        'slug',
-                        'task-manager-frontend'
-                    )
-                    ->value('id'),
-
+                'project_id' => $projectId,
                 'user_id' => $owner->id,
                 'added_by' => $owner->id,
             ],
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $projectId,
+
+                'actor_id' =>
+                    $owner->id,
+
+                'type' =>
+                    'project_created',
+
+                'subject_type' =>
+                    'project',
+
+                'subject_id' =>
+                    $projectId,
+
+                'subject_label' =>
+                    'Task Manager Frontend',
+            ]
         );
     }
 

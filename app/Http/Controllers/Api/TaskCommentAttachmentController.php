@@ -17,9 +17,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\Gate;
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
 
 class TaskCommentAttachmentController extends Controller
 {
+
+    public function __construct(
+        private readonly ProjectActivityLogger $activityLogger,
+    ) {
+    }
     public function file(
         Workspace $workspace,
         Project $project,
@@ -115,6 +123,18 @@ class TaskCommentAttachmentController extends Controller
             403,
         );
 
+        $attachmentId =
+            $attachment->id;
+
+        $attachmentName =
+            $attachment->original_name;
+
+        $attachmentMimeType =
+            $attachment->mime_type;
+
+        $attachmentSize =
+            $attachment->size;
+
         $remainingContent =
             trim(
                 (string) $comment->body,
@@ -143,6 +163,32 @@ class TaskCommentAttachmentController extends Controller
         );
 
         $attachment->delete();
+
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::CommentAttachmentRemoved,
+            actor: $user,
+            subjectType:
+                ProjectActivitySubjectType::CommentAttachment,
+            subjectId:
+                $attachmentId,
+            subjectLabel:
+                $attachmentName,
+            metadata: [
+                'task_id' =>
+                    $task->id,
+
+                'comment_id' =>
+                    $comment->id,
+
+                'mime_type' =>
+                    $attachmentMimeType,
+
+                'size' =>
+                    $attachmentSize,
+            ],
+        );
 
         return response()->json([
             'message' =>

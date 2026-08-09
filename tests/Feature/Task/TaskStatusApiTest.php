@@ -15,6 +15,7 @@ use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use App\Models\ProjectActivity;
 
 class TaskStatusApiTest extends TestCase
 {
@@ -80,6 +81,72 @@ class TaskStatusApiTest extends TestCase
             [
                 'task_id' => $task->id,
                 'user_id' => $member->id,
+            ]
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_status_changed',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $task->id,
+
+                'subject_label' =>
+                    $task->title,
+            ]
+        );
+        $activity = ProjectActivity::query()
+            ->where(
+                'project_id',
+                $project->id
+            )
+            ->where(
+                'type',
+                'task_status_changed'
+            )
+            ->where(
+                'subject_id',
+                $task->id
+            )
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(
+            TaskStatus::Todo->value,
+            data_get(
+                $activity->metadata,
+                'from'
+            )
+        );
+
+        $this->assertSame(
+            TaskStatus::InProgress->value,
+            data_get(
+                $activity->metadata,
+                'to'
+            )
+        );
+        $this->assertDatabaseMissing(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'type' =>
+                    'task_updated',
+
+                'subject_id' =>
+                    $task->id,
             ]
         );
     }

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Controllers\Api\ProjectActivityController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
@@ -217,6 +218,22 @@ Route::prefix('workspaces')
                 'destroy',
             ],
         );
+
+         /*
+                |--------------------------------------------------------------------------
+                | activity
+                |--------------------------------------------------------------------------
+                */
+                Route::get(
+                    '/{workspace}/projects/{project}/activities',
+                    [
+                        ProjectActivityController::class,
+                        'index',
+                    ],
+                );
+
+
+
         /*
         |--------------------------------------------------------------------------
         | Project Members

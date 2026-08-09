@@ -20,9 +20,16 @@ use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
 
 class TaskAttachmentController extends Controller
 {
+    public function __construct(
+        private readonly ProjectActivityLogger $activityLogger,
+    ) {
+    }
     private const MAX_ATTACHMENTS_PER_TASK = 10;
 
     /**
@@ -142,6 +149,33 @@ class TaskAttachmentController extends Controller
             ->limit(count($images))
             ->get();
 
+            foreach ($attachments as $attachment) {
+                $this->activityLogger->log(
+                    project: $project,
+                    type:
+                        ProjectActivityType::TaskAttachmentAdded,
+                    actor: $request->user(),
+                    subjectType:
+                        ProjectActivitySubjectType::TaskAttachment,
+                    subjectId: $attachment->id,
+                    subjectLabel:
+                        $attachment->original_name,
+                    metadata: [
+                        'task_id' =>
+                            $task->id,
+
+                        'task_title' =>
+                            $task->title,
+
+                        'mime_type' =>
+                            $attachment->mime_type,
+
+                        'size' =>
+                            $attachment->size,
+                    ],
+                );
+            }
+
         return response()->json([
             'message' =>
                 'Task images uploaded successfully.',
@@ -225,12 +259,50 @@ class TaskAttachmentController extends Controller
             $attachment
         );
 
+        $attachmentId =
+            $attachment->id;
+
+        $attachmentName =
+            $attachment->original_name;
+
+        $attachmentMimeType =
+            $attachment->mime_type;
+
+        $attachmentSize =
+            $attachment->size;
+
         $disk = $attachment->disk;
         $path = $attachment->path;
 
         $attachment->delete();
 
         Storage::disk($disk)->delete($path);
+
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::TaskAttachmentRemoved,
+            actor: $request->user(),
+            subjectType:
+                ProjectActivitySubjectType::TaskAttachment,
+            subjectId:
+                $attachmentId,
+            subjectLabel:
+                $attachmentName,
+            metadata: [
+                'task_id' =>
+                    $task->id,
+
+                'task_title' =>
+                    $task->title,
+
+                'mime_type' =>
+                    $attachmentMimeType,
+
+                'size' =>
+                    $attachmentSize,
+            ],
+        );
 
         return response()->json([
             'message' =>

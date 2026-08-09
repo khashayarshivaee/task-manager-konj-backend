@@ -14,9 +14,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
-
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
+use Illuminate\Http\Request;
 class ProjectMemberController extends Controller
 {
+
+    public function __construct(
+        private readonly ProjectActivityLogger $activityLogger
+    ) {
+    }
     /**
      * List all members belonging to the project.
      */
@@ -100,6 +108,23 @@ class ProjectMemberController extends Controller
             'user:id,name,email,avatar_path,is_active',
             'addedBy:id,name,email',
         ]);
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::ProjectMemberAdded,
+            actor: $request->user(),
+            subjectType:
+                ProjectActivitySubjectType::ProjectMember,
+            subjectId: $membership->id,
+            subjectLabel: $membership->user->name,
+            metadata: [
+                'user_id' =>
+                    $membership->user_id,
+
+                'user_email' =>
+                    $membership->user->email,
+            ],
+        );
 
         return response()->json([
             'message' =>
@@ -118,11 +143,12 @@ class ProjectMemberController extends Controller
     /**
      * Remove a member from the project team.
      */
-    public function destroy(
-        Workspace $workspace,
-        Project $project,
-        ProjectMembership $membership
-    ): JsonResponse {
+public function destroy(
+    Request $request,
+    Workspace $workspace,
+    Project $project,
+    ProjectMembership $membership
+): JsonResponse {
         $this->ensureProjectBelongsToWorkspace(
             $workspace,
             $project
@@ -143,14 +169,50 @@ class ProjectMemberController extends Controller
        $membership
    );
 
-   $this->ensureMembershipHasNoTaskAssignments(
-       $project,
-       $membership
-   );
+  $this->ensureMembershipHasNoTaskAssignments(
+      $project,
+      $membership
+  );
 
-   $membership->delete();
+  $membership->loadMissing([
+      'user:id,name,email',
+  ]);
 
-        return response()->json([
+  $removedUserId =
+      $membership->user_id;
+
+  $removedUserName =
+      $membership->user->name;
+
+  $removedUserEmail =
+      $membership->user->email;
+
+  $removedMembershipId =
+      $membership->id;
+
+  $membership->delete();
+
+  $this->activityLogger->log(
+      project: $project,
+      type:
+          ProjectActivityType::ProjectMemberRemoved,
+      actor: $request->user(),
+      subjectType:
+          ProjectActivitySubjectType::ProjectMember,
+      subjectId:
+          $removedMembershipId,
+      subjectLabel:
+          $removedUserName,
+      metadata: [
+          'user_id' =>
+              $removedUserId,
+
+          'user_email' =>
+              $removedUserEmail,
+      ],
+  );
+
+  return response()->json([
             'message' =>
                 'Project member removed successfully.',
         ]);

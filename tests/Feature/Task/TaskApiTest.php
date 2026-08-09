@@ -133,6 +133,39 @@ class TaskApiTest extends TestCase
             'assigned_to' => $member->id,
             'title' => 'Build task modal',
         ]);
+        $taskId = Task::query()
+            ->where(
+                'project_id',
+                $project->id
+            )
+            ->where(
+                'title',
+                'Build task modal'
+            )
+            ->value('id');
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_created',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $taskId,
+
+                'subject_label' =>
+                    'Build task modal',
+            ]
+        );
     }
     public function test_workspace_member_cannot_assign_user_who_is_not_project_member(): void
     {
@@ -527,6 +560,72 @@ class TaskApiTest extends TestCase
             'assigned_to' => $member->id,
             'status' => TaskStatus::InProgress->value,
         ]);
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_updated',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $task->id,
+
+                'subject_label' =>
+                    'Updated Task',
+            ]
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_status_changed',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $task->id,
+
+                'subject_label' =>
+                    'Updated Task',
+            ]
+        );
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_assignees_changed',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $task->id,
+
+                'subject_label' =>
+                    'Updated Task',
+            ]
+        );
     }
 
     public function test_completed_timestamp_is_managed_when_status_changes(): void
@@ -623,6 +722,28 @@ class TaskApiTest extends TestCase
         $this->assertDatabaseMissing('tasks', [
             'id' => $task->id,
         ]);
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $member->id,
+
+                'type' =>
+                    'task_deleted',
+
+                'subject_type' =>
+                    'task',
+
+                'subject_id' =>
+                    $task->id,
+
+                'subject_label' =>
+                    'Creator Task',
+            ]
+        );
     }
 
     public function test_unrelated_member_cannot_delete_task(): void

@@ -74,6 +74,16 @@ class Project extends Model
     }
 
     /**
+     * Get activity records belonging to the project.
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(
+            ProjectActivity::class
+        );
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

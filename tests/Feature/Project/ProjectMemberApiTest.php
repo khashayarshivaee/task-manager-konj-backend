@@ -139,6 +139,40 @@ class ProjectMemberApiTest extends TestCase
                 'added_by' => $owner->id,
             ]
         );
+        $membershipId =
+            ProjectMembership::query()
+                ->where(
+                    'project_id',
+                    $project->id
+                )
+                ->where(
+                    'user_id',
+                    $member->id
+                )
+                ->value('id');
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $owner->id,
+
+                'type' =>
+                    'project_member_added',
+
+                'subject_type' =>
+                    'project_member',
+
+                'subject_id' =>
+                    $membershipId,
+
+                'subject_label' =>
+                    $member->name,
+            ]
+        );
     }
 
     public function test_admin_can_add_workspace_member_to_project(): void
@@ -389,6 +423,29 @@ class ProjectMemberApiTest extends TestCase
             'users',
             [
                 'id' => $member->id,
+            ]
+        );
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'project_id' =>
+                    $project->id,
+
+                'actor_id' =>
+                    $admin->id,
+
+                'type' =>
+                    'project_member_removed',
+
+                'subject_type' =>
+                    'project_member',
+
+                'subject_id' =>
+                    $membership->id,
+
+                'subject_label' =>
+                    $member->name,
             ]
         );
     }

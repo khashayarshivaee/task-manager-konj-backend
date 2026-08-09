@@ -14,9 +14,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use App\Enums\ProjectActivitySubjectType;
+use App\Enums\ProjectActivityType;
+use App\Services\ProjectActivityLogger;
 
 class ProjectController extends Controller
 {
+
+    public function __construct(
+        private readonly ProjectActivityLogger $activityLogger
+    ) {
+    }
     /**
      * Get projects belonging to the workspace.
      */
@@ -101,6 +109,16 @@ class ProjectController extends Controller
 
                 'joined_at' => now(),
             ]);
+                    $this->activityLogger->log(
+                        project: $project,
+                        type:
+                            ProjectActivityType::ProjectCreated,
+                        actor: $request->user(),
+                        subjectType:
+                            ProjectActivitySubjectType::Project,
+                        subjectId: $project->id,
+                        subjectLabel: $project->name,
+                    );
 
         return response()->json([
             'message' => 'Project created successfully.',
@@ -159,6 +177,11 @@ class ProjectController extends Controller
 
         $validated = $request->validated();
 
+                $beforeUpdate =
+                    $this->projectActivityState(
+                        $project
+                    );
+
         $slug = $project->slug;
 
         if ($project->name !== $validated['name']) {
@@ -187,6 +210,44 @@ class ProjectController extends Controller
             'due_at' =>
                 $validated['due_at'] ?? null,
         ]);
+                $afterUpdate =
+                    $this->projectActivityState(
+                        $project
+                    );
+
+                $changes = [];
+
+                foreach (
+                    $afterUpdate as $field => $value
+                ) {
+                    $oldValue =
+                        $beforeUpdate[$field];
+
+                    if ($oldValue === $value) {
+                        continue;
+                    }
+
+                    $changes[$field] = [
+                        'from' => $oldValue,
+                        'to' => $value,
+                    ];
+                }
+
+                if ($changes !== []) {
+                    $this->activityLogger->log(
+                        project: $project,
+                        type:
+                            ProjectActivityType::ProjectUpdated,
+                        actor: $request->user(),
+                        subjectType:
+                            ProjectActivitySubjectType::Project,
+                        subjectId: $project->id,
+                        subjectLabel: $project->name,
+                        metadata: [
+                            'changes' => $changes,
+                        ],
+                    );
+                }
 
         $project->load([
             'creator:id,name,email',
@@ -225,6 +286,48 @@ class ProjectController extends Controller
             'message' => 'Project deleted successfully.',
         ]);
     }
+
+        /**
+         * Get the project values tracked
+         * by the activity timeline.
+         *
+         * @return array<string, mixed>
+         */
+        private function projectActivityState(
+            Project $project
+        ): array {
+            return [
+                'name' =>
+                    $project->getRawOriginal(
+                        'name'
+                    ),
+
+                'description' =>
+                    $project->getRawOriginal(
+                        'description'
+                    ),
+
+                'status' =>
+                    $project->getRawOriginal(
+                        'status'
+                    ),
+
+                'color' =>
+                    $project->getRawOriginal(
+                        'color'
+                    ),
+
+                'starts_at' =>
+                    $project->getRawOriginal(
+                        'starts_at'
+                    ),
+
+                'due_at' =>
+                    $project->getRawOriginal(
+                        'due_at'
+                    ),
+            ];
+        }
 
     /**
      * Ensure that the nested project belongs to the workspace.
