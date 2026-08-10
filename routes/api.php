@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\WorkspaceNoteController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WorkspaceNoteAttachmentController;
+use App\Http\Controllers\Api\PushDeviceController;
 use App\Http\Controllers\Api\ProjectActivityController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectMemberController;
@@ -91,7 +92,7 @@ Route::prefix('auth')->group(function (): void {
     Route::middleware([
         'auth:sanctum',
         EnsureUserIsActive::class,
-    ])->group(function (): void {
+     ])->group(function (): void {
         Route::get(
             '/me',
             [
@@ -117,8 +118,39 @@ Route::prefix('auth')->group(function (): void {
                 'logout',
             ],
         );
-    });
+      });
 });
+
+
+/*
+|--------------------------------------------------------------------------
+| Push Devices
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('push-devices')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ])
+    ->group(function (): void {
+        Route::post(
+            '/',
+            [
+                PushDeviceController::class,
+                'store',
+            ],
+        );
+
+        Route::delete(
+            '/',
+            [
+                PushDeviceController::class,
+                'destroy',
+            ],
+        );
+    });
 
 /*
 |--------------------------------------------------------------------------

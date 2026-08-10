@@ -185,6 +185,18 @@ class User extends Authenticatable implements MustVerifyEmail
      );
  }
 
+ /**
+  * Get push notification devices
+  * registered for the user.
+  */
+ public function pushDevices(): HasMany
+ {
+     return $this->hasMany(
+         PushDevice::class,
+         'user_id',
+     );
+ }
+
     protected function casts(): array
     {
         return [
