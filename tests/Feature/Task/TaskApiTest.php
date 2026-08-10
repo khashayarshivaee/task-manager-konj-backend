@@ -167,6 +167,128 @@ class TaskApiTest extends TestCase
             ]
         );
     }
+    public function test_new_task_assignee_receives_activity_notification_on_create(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner
+            );
+
+        $this->addMember(
+            $workspace,
+            $member
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner
+            );
+
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $member->id,
+
+                'added_by' =>
+                    $owner->id,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        Sanctum::actingAs(
+            $owner
+        );
+
+        $response =
+            $this->postJson(
+                "/api/workspaces/{$workspace->id}"
+                ."/projects/{$project->id}"
+                .'/tasks',
+                [
+                    'title' =>
+                        'Created Notification Task',
+
+                    'description' =>
+                        null,
+
+                    'status' =>
+                        TaskStatus::Todo->value,
+
+                    'priority' =>
+                        TaskPriority::Medium->value,
+
+                    'assigned_to' =>
+                        $member->id,
+
+                    'starts_at' =>
+                        null,
+
+                    'due_at' =>
+                        null,
+                ]
+            );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath(
+                'data.task.title',
+                'Created Notification Task',
+            );
+
+        $taskId =
+            (int) $response->json(
+                'data.task.id'
+            );
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_created',
+                )
+                ->where(
+                    'subject_id',
+                    $taskId,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
     public function test_workspace_member_cannot_assign_user_who_is_not_project_member(): void
     {
         $owner = User::factory()->create();

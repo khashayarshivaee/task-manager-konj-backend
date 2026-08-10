@@ -238,34 +238,40 @@ public function __construct(
         $task,
         (int) $request->user()->id,
     );
-    $this->activityLogger->log(
-              project: $project,
-              type:
-                  ProjectActivityType::TaskCreated,
-              actor: $request->user(),
-              subjectType:
-                  ProjectActivitySubjectType::Task,
-              subjectId: $task->id,
-              subjectLabel: $task->title,
-              metadata: [
-                  'status' =>
-                      $task->status->value,
+    $activity =
+        $this->activityLogger->log(
+            project: $project,
+            type:
+                ProjectActivityType::TaskCreated,
+            actor: $request->user(),
+            subjectType:
+                ProjectActivitySubjectType::Task,
+            subjectId: $task->id,
+            subjectLabel: $task->title,
+            metadata: [
+                'status' =>
+                    $task->status->value,
 
-                  'priority' =>
-                      $task->priority->value,
+                'priority' =>
+                    $task->priority->value,
 
-                  'assignees' =>
-                      $task->assignees
-                          ->map(
-                              fn (User $user): array => [
-                                  'id' => $user->id,
-                                  'name' => $user->name,
-                              ]
-                          )
-                          ->values()
-                          ->all(),
-              ],
-          );
+                'assignees' =>
+                    $task->assignees
+                        ->map(
+                            fn (User $user): array => [
+                                'id' => $user->id,
+                                'name' => $user->name,
+                            ]
+                        )
+                        ->values()
+                        ->all(),
+            ],
+        );
+
+    $this->activityNotifications->notify(
+        $activity,
+        $assigneeIds,
+    );
 
        return response()->json([
            'message' =>
