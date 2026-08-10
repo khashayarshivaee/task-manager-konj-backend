@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EmailVerificationController;
 use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\WorkspaceNoteController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\WorkspaceNoteAttachmentController;
 use App\Http\Controllers\Api\ProjectActivityController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectMemberController;
@@ -306,6 +308,90 @@ Route::prefix('workspaces')
             '/{workspace}/members/{membership}',
             [
                 WorkspaceMemberController::class,
+                'destroy',
+            ],
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Workspace Notes
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/{workspace}/notes',
+            [
+                WorkspaceNoteController::class,
+                'index',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/notes',
+            [
+                WorkspaceNoteController::class,
+                'store',
+            ],
+        );
+
+        Route::get(
+            '/{workspace}/notes/{note}',
+            [
+                WorkspaceNoteController::class,
+                'show',
+            ],
+        );
+
+        Route::put(
+            '/{workspace}/notes/{note}',
+            [
+                WorkspaceNoteController::class,
+                'update',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/notes/{note}',
+            [
+                WorkspaceNoteController::class,
+                'destroy',
+            ],
+        );
+        /*
+        |--------------------------------------------------------------------------
+        | Workspace Note Attachments
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/{workspace}/notes/{note}/attachments',
+            [
+                WorkspaceNoteAttachmentController::class,
+                'index',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/notes/{note}/attachments',
+            [
+                WorkspaceNoteAttachmentController::class,
+                'store',
+            ],
+        );
+
+        Route::get(
+            '/{workspace}/notes/{note}/attachments/{attachment}/file',
+            [
+                WorkspaceNoteAttachmentController::class,
+                'file',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/notes/{note}/attachments/{attachment}',
+            [
+                WorkspaceNoteAttachmentController::class,
                 'destroy',
             ],
         );

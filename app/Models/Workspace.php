@@ -64,4 +64,14 @@ class Workspace extends Model
     {
         return $this->hasMany(Project::class);
     }
+
+    /**
+     * Get notes belonging to the workspace.
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(
+            WorkspaceNote::class
+        );
+    }
 }
