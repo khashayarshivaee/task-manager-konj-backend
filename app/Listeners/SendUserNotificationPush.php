@@ -68,6 +68,13 @@ final class SendUserNotificationPush implements ShouldQueue
                             'project_id'
                         ] ?? null,
 
+                    'task_id' =>
+                        $this->resolveTaskId(
+                            $event->notification,
+                        ),
+
+
+
                     'activity_type' =>
                         $event->notification[
                             'type'
@@ -112,9 +119,9 @@ final class SendUserNotificationPush implements ShouldQueue
     /**
      * @param array<string, mixed> $notification
      */
-    private function buildBody(
+     private function buildBody(
         array $notification,
-    ): string {
+      ): string {
         $actorName =
             trim(
                 (string) data_get(
@@ -204,5 +211,45 @@ final class SendUserNotificationPush implements ShouldQueue
             default =>
                 "{$actorName} updated {$subjectLabel}.",
         };
+    }
+
+    /**
+     * @param array<string, mixed> $notification
+     */
+    private function resolveTaskId(
+        array $notification,
+    ): ?int {
+        $subjectType =
+            $notification[
+                'subject_type'
+            ] ?? null;
+
+        $subjectId =
+            $notification[
+                'subject_id'
+            ] ?? null;
+
+        if (
+            $subjectType === 'task' &&
+            is_numeric($subjectId) &&
+            (int) $subjectId > 0
+        ) {
+            return (int) $subjectId;
+        }
+
+        $metadataTaskId =
+            data_get(
+                $notification,
+                'metadata.task_id',
+            );
+
+        if (
+            is_numeric($metadataTaskId) &&
+            (int) $metadataTaskId > 0
+        ) {
+            return (int) $metadataTaskId;
+        }
+
+        return null;
     }
 }
