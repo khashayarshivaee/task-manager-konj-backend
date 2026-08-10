@@ -18,13 +18,15 @@ use App\Enums\ProjectActivitySubjectType;
 use App\Enums\ProjectActivityType;
 use App\Services\ProjectActivityLogger;
 use Illuminate\Http\Request;
+use App\Services\ProjectActivityNotificationService;
 class ProjectMemberController extends Controller
 {
 
-    public function __construct(
-        private readonly ProjectActivityLogger $activityLogger
-    ) {
-    }
+   public function __construct(
+       private readonly ProjectActivityLogger $activityLogger,
+       private readonly ProjectActivityNotificationService $activityNotifications,
+   ) {
+   }
     /**
      * List all members belonging to the project.
      */
@@ -108,22 +110,35 @@ class ProjectMemberController extends Controller
             'user:id,name,email,avatar_path,is_active',
             'addedBy:id,name,email',
         ]);
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::ProjectMemberAdded,
-            actor: $request->user(),
-            subjectType:
-                ProjectActivitySubjectType::ProjectMember,
-            subjectId: $membership->id,
-            subjectLabel: $membership->user->name,
-            metadata: [
-                'user_id' =>
-                    $membership->user_id,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::ProjectMemberAdded,
+                actor: $request->user(),
+                subjectType:
+                    ProjectActivitySubjectType::ProjectMember,
+                subjectId: $membership->id,
+                subjectLabel:
+                    $membership->user->name,
+                metadata: [
+                    'user_id' =>
+                        $membership->user_id,
 
-                'user_email' =>
-                    $membership->user->email,
-            ],
+                    'user_email' =>
+                        $membership->user->email,
+                ],
+            );
+
+        $this->activityNotifications->notify(
+            $activity,
+            $project
+                ->memberships()
+                ->pluck('user_id')
+                ->map(
+                    static fn ($userId): int =>
+                        (int) $userId,
+                ),
         );
 
         return response()->json([
@@ -190,26 +205,41 @@ public function destroy(
   $removedMembershipId =
       $membership->id;
 
+      $notificationRecipientIds =
+          $project
+              ->memberships()
+              ->pluck('user_id')
+              ->map(
+                  static fn ($userId): int =>
+                      (int) $userId,
+              );
+
   $membership->delete();
 
-  $this->activityLogger->log(
-      project: $project,
-      type:
-          ProjectActivityType::ProjectMemberRemoved,
-      actor: $request->user(),
-      subjectType:
-          ProjectActivitySubjectType::ProjectMember,
-      subjectId:
-          $removedMembershipId,
-      subjectLabel:
-          $removedUserName,
-      metadata: [
-          'user_id' =>
-              $removedUserId,
+  $activity =
+      $this->activityLogger->log(
+          project: $project,
+          type:
+              ProjectActivityType::ProjectMemberRemoved,
+          actor: $request->user(),
+          subjectType:
+              ProjectActivitySubjectType::ProjectMember,
+          subjectId:
+              $removedMembershipId,
+          subjectLabel:
+              $removedUserName,
+          metadata: [
+              'user_id' =>
+                  $removedUserId,
 
-          'user_email' =>
-              $removedUserEmail,
-      ],
+              'user_email' =>
+                  $removedUserEmail,
+          ],
+      );
+
+  $this->activityNotifications->notify(
+      $activity,
+      $notificationRecipientIds,
   );
 
   return response()->json([

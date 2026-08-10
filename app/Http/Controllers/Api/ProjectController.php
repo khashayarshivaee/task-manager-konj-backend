@@ -17,14 +17,16 @@ use Symfony\Component\HttpFoundation\Response;
 use App\Enums\ProjectActivitySubjectType;
 use App\Enums\ProjectActivityType;
 use App\Services\ProjectActivityLogger;
+use App\Services\ProjectActivityNotificationService;
 
 class ProjectController extends Controller
 {
 
-    public function __construct(
-        private readonly ProjectActivityLogger $activityLogger
-    ) {
-    }
+   public function __construct(
+       private readonly ProjectActivityLogger $activityLogger,
+       private readonly ProjectActivityNotificationService $activityNotifications,
+   ) {
+   }
     /**
      * Get projects belonging to the workspace.
      */
@@ -234,18 +236,31 @@ class ProjectController extends Controller
                 }
 
                 if ($changes !== []) {
-                    $this->activityLogger->log(
-                        project: $project,
-                        type:
-                            ProjectActivityType::ProjectUpdated,
-                        actor: $request->user(),
-                        subjectType:
-                            ProjectActivitySubjectType::Project,
-                        subjectId: $project->id,
-                        subjectLabel: $project->name,
-                        metadata: [
-                            'changes' => $changes,
-                        ],
+                    $activity =
+                        $this->activityLogger->log(
+                            project: $project,
+                            type:
+                                ProjectActivityType::ProjectUpdated,
+                            actor: $request->user(),
+                            subjectType:
+                                ProjectActivitySubjectType::Project,
+                            subjectId: $project->id,
+                            subjectLabel: $project->name,
+                            metadata: [
+                                'changes' =>
+                                    $changes,
+                            ],
+                        );
+
+                    $this->activityNotifications->notify(
+                        $activity,
+                        $project
+                            ->memberships()
+                            ->pluck('user_id')
+                            ->map(
+                                static fn ($userId): int =>
+                                    (int) $userId,
+                            ),
                     );
                 }
 

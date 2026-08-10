@@ -175,6 +175,81 @@ class ProjectMemberApiTest extends TestCase
         );
     }
 
+    public function test_added_project_member_receives_activity_notification(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addWorkspaceMembership(
+            $workspace,
+            $member,
+            WorkspaceRole::Member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        Sanctum::actingAs(
+            $owner,
+        );
+
+        $this->postJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            .'/members',
+            [
+                'user_id' =>
+                    $member->id,
+            ],
+        )->assertCreated();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'project_member_added',
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
     public function test_admin_can_add_workspace_member_to_project(): void
     {
         $owner = User::factory()->create();
@@ -449,6 +524,126 @@ class ProjectMemberApiTest extends TestCase
             ]
         );
     }
+
+    public function test_removed_project_member_receives_activity_notification(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addWorkspaceMembership(
+            $workspace,
+            $admin,
+            WorkspaceRole::Admin,
+        );
+
+        $this->addWorkspaceMembership(
+            $workspace,
+            $member,
+            WorkspaceRole::Member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        $membership =
+            $project
+                ->memberships()
+                ->create([
+                    'user_id' =>
+                        $member->id,
+
+                    'added_by' =>
+                        $owner->id,
+
+                    'joined_at' =>
+                        now(),
+                ]);
+
+        Sanctum::actingAs(
+            $admin,
+        );
+
+        $this->deleteJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/members/{$membership->id}",
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'project_member_removed',
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        /*
+         * Removed member was collected as a
+         * recipient before the membership
+         * itself was deleted.
+         */
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        /*
+         * Existing project members are also
+         * notified about the removal.
+         */
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        /*
+         * Admin performed the action and is
+         * not a project member in this setup.
+         */
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $admin->id,
+            ],
+        );
+    }
+
     public function test_project_member_cannot_be_removed_while_assigned_to_task(): void
     {
         $owner = User::factory()->create();

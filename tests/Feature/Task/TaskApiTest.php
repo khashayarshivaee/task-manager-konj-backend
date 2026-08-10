@@ -750,6 +750,347 @@ class TaskApiTest extends TestCase
         );
     }
 
+    public function test_task_watcher_receives_activity_notification_when_task_is_updated(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addMember(
+            $workspace,
+            $member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        $task = Task::query()->create([
+            'project_id' =>
+                $project->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'title' =>
+                'Original Task',
+
+            'status' =>
+                TaskStatus::Todo,
+
+            'priority' =>
+                TaskPriority::Medium,
+
+            'position' =>
+                1,
+        ]);
+
+        $task
+            ->watchers()
+            ->attach(
+                $member->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        Sanctum::actingAs(
+            $owner,
+        );
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$task->id}",
+            [
+                'title' =>
+                    'Updated Notification Task',
+
+                'description' =>
+                    null,
+
+                'status' =>
+                    TaskStatus::Todo->value,
+
+                'priority' =>
+                    TaskPriority::Medium->value,
+
+                'assigned_to' =>
+                    null,
+
+                'starts_at' =>
+                    null,
+
+                'due_at' =>
+                    null,
+            ],
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_updated',
+                )
+                ->where(
+                    'subject_id',
+                    $task->id,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
+    public function test_task_watcher_receives_activity_notification_when_status_changes(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addMember(
+            $workspace,
+            $member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        $task = Task::query()->create([
+            'project_id' =>
+                $project->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'title' =>
+                'Status Notification Task',
+
+            'status' =>
+                TaskStatus::Todo,
+
+            'priority' =>
+                TaskPriority::Medium,
+
+            'position' =>
+                1,
+        ]);
+
+        $task
+            ->watchers()
+            ->attach(
+                $member->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        Sanctum::actingAs(
+            $owner,
+        );
+
+        $this->patchJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$task->id}/status",
+            [
+                'status' =>
+                    TaskStatus::InProgress->value,
+            ],
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_status_changed',
+                )
+                ->where(
+                    'subject_id',
+                    $task->id,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
+    public function test_task_watcher_receives_activity_notification_when_task_is_deleted(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $this->addMember(
+            $workspace,
+            $member,
+        );
+
+        $project =
+            $this->createProject(
+                $workspace,
+                $owner,
+            );
+
+        $task = Task::query()->create([
+            'project_id' =>
+                $project->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'title' =>
+                'Delete Notification Task',
+
+            'status' =>
+                TaskStatus::Todo,
+
+            'priority' =>
+                TaskPriority::Medium,
+
+            'position' =>
+                1,
+        ]);
+
+        $taskId =
+            $task->id;
+
+        $task
+            ->watchers()
+            ->attach(
+                $member->id,
+                [
+                    'last_read_comment_id' =>
+                        null,
+                ],
+            );
+
+        Sanctum::actingAs(
+            $owner,
+        );
+
+        $this->deleteJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}"
+            ."/tasks/{$taskId}",
+        )->assertOk();
+
+        $activity =
+            \App\Models\ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'task_deleted',
+                )
+                ->where(
+                    'subject_id',
+                    $taskId,
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
     public function test_new_task_assignee_receives_activity_notification(): void
     {
         $owner = User::factory()->create();

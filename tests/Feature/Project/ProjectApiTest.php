@@ -329,6 +329,139 @@ class ProjectApiTest extends TestCase
         );
     }
 
+    public function test_project_member_receives_activity_notification_when_project_is_updated(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+
+        $workspace =
+            $this->createWorkspace(
+                $owner,
+            );
+
+        $workspace
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $member->id,
+
+                'role' =>
+                    WorkspaceRole::Member,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        $project = Project::query()->create([
+            'workspace_id' =>
+                $workspace->id,
+
+            'created_by' =>
+                $owner->id,
+
+            'name' =>
+                'Notification Project',
+
+            'slug' =>
+                'notification-project',
+
+            'status' =>
+                ProjectStatus::Planning,
+        ]);
+
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $owner->id,
+
+                'added_by' =>
+                    $owner->id,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        $project
+            ->memberships()
+            ->create([
+                'user_id' =>
+                    $member->id,
+
+                'added_by' =>
+                    $owner->id,
+
+                'joined_at' =>
+                    now(),
+            ]);
+
+        Sanctum::actingAs(
+            $owner,
+        );
+
+        $this->putJson(
+            "/api/workspaces/{$workspace->id}"
+            ."/projects/{$project->id}",
+            [
+                'name' =>
+                    'Updated Notification Project',
+
+                'description' =>
+                    null,
+
+                'status' =>
+                    ProjectStatus::Active->value,
+
+                'color' =>
+                    null,
+
+                'starts_at' =>
+                    null,
+
+                'due_at' =>
+                    null,
+            ],
+        )->assertOk();
+
+        $activity =
+            ProjectActivity::query()
+                ->where(
+                    'project_id',
+                    $project->id,
+                )
+                ->where(
+                    'type',
+                    'project_updated',
+                )
+                ->latest('id')
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $member->id,
+
+                'read_at' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseMissing(
+            'project_activity_recipients',
+            [
+                'project_activity_id' =>
+                    $activity->id,
+
+                'user_id' =>
+                    $owner->id,
+            ],
+        );
+    }
+
     public function test_member_cannot_update_project(): void
     {
         $owner = User::factory()->create();

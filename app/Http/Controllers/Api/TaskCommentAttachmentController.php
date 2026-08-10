@@ -20,14 +20,15 @@ use Illuminate\Support\Facades\Gate;
 use App\Enums\ProjectActivitySubjectType;
 use App\Enums\ProjectActivityType;
 use App\Services\ProjectActivityLogger;
-
+use App\Services\ProjectActivityNotificationService;
 class TaskCommentAttachmentController extends Controller
 {
 
-    public function __construct(
-        private readonly ProjectActivityLogger $activityLogger,
-    ) {
-    }
+   public function __construct(
+       private readonly ProjectActivityLogger $activityLogger,
+       private readonly ProjectActivityNotificationService $activityNotifications,
+   ) {
+   }
     public function file(
         Workspace $workspace,
         Project $project,
@@ -164,30 +165,42 @@ class TaskCommentAttachmentController extends Controller
 
         $attachment->delete();
 
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::CommentAttachmentRemoved,
-            actor: $user,
-            subjectType:
-                ProjectActivitySubjectType::CommentAttachment,
-            subjectId:
-                $attachmentId,
-            subjectLabel:
-                $attachmentName,
-            metadata: [
-                'task_id' =>
-                    $task->id,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::CommentAttachmentRemoved,
+                actor: $user,
+                subjectType:
+                    ProjectActivitySubjectType::CommentAttachment,
+                subjectId:
+                    $attachmentId,
+                subjectLabel:
+                    $attachmentName,
+                metadata: [
+                    'task_id' =>
+                        $task->id,
 
-                'comment_id' =>
-                    $comment->id,
+                    'comment_id' =>
+                        $comment->id,
 
-                'mime_type' =>
-                    $attachmentMimeType,
+                    'mime_type' =>
+                        $attachmentMimeType,
 
-                'size' =>
-                    $attachmentSize,
-            ],
+                    'size' =>
+                        $attachmentSize,
+                ],
+            );
+
+        $this->activityNotifications->notify(
+            $activity,
+            $task
+                ->watchers()
+                ->pluck('users.id')
+                ->map(
+                    static fn ($userId): int =>
+                        (int) $userId,
+                ),
         );
 
         return response()->json([

@@ -422,37 +422,49 @@ public function store(
             $previousBody !==
             $comment->body
         ) {
-            $this->activityLogger->log(
-                project: $project,
-                type:
-                    ProjectActivityType::CommentUpdated,
-                actor: $user,
-                subjectType:
-                    ProjectActivitySubjectType::Comment,
-                subjectId: $comment->id,
-                subjectLabel:
-                    $this->commentActivityLabel(
-                        $comment
-                    ),
-                metadata: [
-                    'task_id' =>
-                        $task->id,
+            $activity =
+                $this->activityLogger->log(
+                    project: $project,
+                    type:
+                        ProjectActivityType::CommentUpdated,
+                    actor: $user,
+                    subjectType:
+                        ProjectActivitySubjectType::Comment,
+                    subjectId: $comment->id,
+                    subjectLabel:
+                        $this->commentActivityLabel(
+                            $comment
+                        ),
+                    metadata: [
+                        'task_id' =>
+                            $task->id,
 
-                    'parent_id' =>
-                        $comment->parent_id,
+                        'parent_id' =>
+                            $comment->parent_id,
 
-                    'changes' => [
-                        'body' => [
-                            'from' =>
-                                $previousBody,
+                        'changes' => [
+                            'body' => [
+                                'from' =>
+                                    $previousBody,
 
-                            'to' =>
-                                $comment->body,
+                                'to' =>
+                                    $comment->body,
+                            ],
                         ],
                     ],
-                ],
+                );
+
+            $this->activityNotifications->notify(
+                $activity,
+                $task
+                    ->watchers()
+                    ->pluck('users.id')
+                    ->map(
+                        static fn ($userId): int =>
+                            (int) $userId,
+                    ),
             );
-        }
+            }
 
         $comment->load([
             'user:id,name,avatar_path',
@@ -567,26 +579,38 @@ public function store(
                 $comment->delete();
             },
         );
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::CommentDeleted,
-            actor: $user,
-            subjectType:
-                ProjectActivitySubjectType::Comment,
-            subjectId: $commentId,
-            subjectLabel:
-                $commentLabel,
-            metadata: [
-                'task_id' =>
-                    $task->id,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::CommentDeleted,
+                actor: $user,
+                subjectType:
+                    ProjectActivitySubjectType::Comment,
+                subjectId: $commentId,
+                subjectLabel:
+                    $commentLabel,
+                metadata: [
+                    'task_id' =>
+                        $task->id,
 
-                'parent_id' =>
-                    $parentId,
+                    'parent_id' =>
+                        $parentId,
 
-                'body' =>
-                    $commentBody,
-            ],
+                    'body' =>
+                        $commentBody,
+                ],
+            );
+
+        $this->activityNotifications->notify(
+            $activity,
+            $task
+                ->watchers()
+                ->pluck('users.id')
+                ->map(
+                    static fn ($userId): int =>
+                        (int) $userId,
+                ),
         );
         $realtime->broadcastDeleted(
             (int) $workspace->id,

@@ -23,13 +23,15 @@ use Throwable;
 use App\Enums\ProjectActivitySubjectType;
 use App\Enums\ProjectActivityType;
 use App\Services\ProjectActivityLogger;
+use App\Services\ProjectActivityNotificationService;
 
 class TaskAttachmentController extends Controller
 {
-    public function __construct(
-        private readonly ProjectActivityLogger $activityLogger,
-    ) {
-    }
+   public function __construct(
+       private readonly ProjectActivityLogger $activityLogger,
+       private readonly ProjectActivityNotificationService $activityNotifications,
+   ) {
+   }
     private const MAX_ATTACHMENTS_PER_TASK = 10;
 
     /**
@@ -149,30 +151,49 @@ class TaskAttachmentController extends Controller
             ->limit(count($images))
             ->get();
 
+            $notificationActivity = null;
+
             foreach ($attachments as $attachment) {
-                $this->activityLogger->log(
-                    project: $project,
-                    type:
-                        ProjectActivityType::TaskAttachmentAdded,
-                    actor: $request->user(),
-                    subjectType:
-                        ProjectActivitySubjectType::TaskAttachment,
-                    subjectId: $attachment->id,
-                    subjectLabel:
-                        $attachment->original_name,
-                    metadata: [
-                        'task_id' =>
-                            $task->id,
+                $activity =
+                    $this->activityLogger->log(
+                        project: $project,
+                        type:
+                            ProjectActivityType::TaskAttachmentAdded,
+                        actor: $request->user(),
+                        subjectType:
+                            ProjectActivitySubjectType::TaskAttachment,
+                        subjectId: $attachment->id,
+                        subjectLabel:
+                            $attachment->original_name,
+                        metadata: [
+                            'task_id' =>
+                                $task->id,
 
-                        'task_title' =>
-                            $task->title,
+                            'task_title' =>
+                                $task->title,
 
-                        'mime_type' =>
-                            $attachment->mime_type,
+                            'mime_type' =>
+                                $attachment->mime_type,
 
-                        'size' =>
-                            $attachment->size,
-                    ],
+                            'size' =>
+                                $attachment->size,
+                        ],
+                    );
+
+                $notificationActivity ??=
+                    $activity;
+            }
+
+            if ($notificationActivity !== null) {
+                $this->activityNotifications->notify(
+                    $notificationActivity,
+                    $task
+                        ->watchers()
+                        ->pluck('users.id')
+                        ->map(
+                            static fn ($userId): int =>
+                                (int) $userId,
+                        ),
                 );
             }
 
@@ -278,30 +299,42 @@ class TaskAttachmentController extends Controller
 
         Storage::disk($disk)->delete($path);
 
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::TaskAttachmentRemoved,
-            actor: $request->user(),
-            subjectType:
-                ProjectActivitySubjectType::TaskAttachment,
-            subjectId:
-                $attachmentId,
-            subjectLabel:
-                $attachmentName,
-            metadata: [
-                'task_id' =>
-                    $task->id,
+        $activity =
+            $this->activityLogger->log(
+                project: $project,
+                type:
+                    ProjectActivityType::TaskAttachmentRemoved,
+                actor: $request->user(),
+                subjectType:
+                    ProjectActivitySubjectType::TaskAttachment,
+                subjectId:
+                    $attachmentId,
+                subjectLabel:
+                    $attachmentName,
+                metadata: [
+                    'task_id' =>
+                        $task->id,
 
-                'task_title' =>
-                    $task->title,
+                    'task_title' =>
+                        $task->title,
 
-                'mime_type' =>
-                    $attachmentMimeType,
+                    'mime_type' =>
+                        $attachmentMimeType,
 
-                'size' =>
-                    $attachmentSize,
-            ],
+                    'size' =>
+                        $attachmentSize,
+                ],
+            );
+
+        $this->activityNotifications->notify(
+            $activity,
+            $task
+                ->watchers()
+                ->pluck('users.id')
+                ->map(
+                    static fn ($userId): int =>
+                        (int) $userId,
+                ),
         );
 
         return response()->json([

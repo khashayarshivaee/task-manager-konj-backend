@@ -487,42 +487,58 @@ $task = $this->loadTaskForResponse(
           ];
       }
 
-      if ($taskChanges !== []) {
-          $this->activityLogger->log(
-              project: $project,
-              type:
-                  ProjectActivityType::TaskUpdated,
-              actor: $request->user(),
-              subjectType:
-                  ProjectActivitySubjectType::Task,
-              subjectId: $task->id,
-              subjectLabel: $task->title,
-              metadata: [
-                  'changes' =>
-                      $taskChanges,
-              ],
-          );
-      }
+     if ($taskChanges !== []) {
+         $activity =
+             $this->activityLogger->log(
+                 project: $project,
+                 type:
+                     ProjectActivityType::TaskUpdated,
+                 actor: $request->user(),
+                 subjectType:
+                     ProjectActivitySubjectType::Task,
+                 subjectId: $task->id,
+                 subjectLabel: $task->title,
+                 metadata: [
+                     'changes' =>
+                         $taskChanges,
+                 ],
+             );
+
+         $this->activityNotifications->notify(
+             $activity,
+             $this->taskWatcherIds(
+                 $task,
+             ),
+         );
+     }
       if (
           $beforeState['status'] !==
           $afterState['status']
       ) {
-          $this->activityLogger->log(
-              project: $project,
-              type:
-                  ProjectActivityType::TaskStatusChanged,
-              actor: $request->user(),
-              subjectType:
-                  ProjectActivitySubjectType::Task,
-              subjectId: $task->id,
-              subjectLabel: $task->title,
-              metadata: [
-                  'from' =>
-                      $beforeState['status'],
+          $activity =
+              $this->activityLogger->log(
+                  project: $project,
+                  type:
+                      ProjectActivityType::TaskStatusChanged,
+                  actor: $request->user(),
+                  subjectType:
+                      ProjectActivitySubjectType::Task,
+                  subjectId: $task->id,
+                  subjectLabel: $task->title,
+                  metadata: [
+                      'from' =>
+                          $beforeState['status'],
 
-                  'to' =>
-                      $afterState['status'],
-              ],
+                      'to' =>
+                          $afterState['status'],
+                  ],
+              );
+
+          $this->activityNotifications->notify(
+              $activity,
+              $this->taskWatcherIds(
+                  $task,
+              ),
           );
       }
       $beforeAssigneeIds = array_column(
@@ -563,34 +579,33 @@ $task = $this->loadTaskForResponse(
               )
           );
 
-        $activity =
-            $this->activityLogger->log(
-                project: $project,
-                type:
-                    ProjectActivityType::TaskAssigneesChanged,
-                actor: $request->user(),
-                subjectType:
-                    ProjectActivitySubjectType::Task,
-                subjectId: $task->id,
-                subjectLabel: $task->title,
-                metadata: [
-                    'added' =>
-                        $addedAssignees,
+          $activity =
+              $this->activityLogger->log(
+                  project: $project,
+                  type:
+                      ProjectActivityType::TaskAssigneesChanged,
+                  actor: $request->user(),
+                  subjectType:
+                      ProjectActivitySubjectType::Task,
+                  subjectId: $task->id,
+                  subjectLabel: $task->title,
+                  metadata: [
+                      'added' =>
+                          $addedAssignees,
 
-                    'removed' =>
-                        $removedAssignees,
-                ],
-            );
+                      'removed' =>
+                          $removedAssignees,
+                  ],
+              );
 
-        $this->activityNotifications->notify(
-            $activity,
-            array_column(
-                $addedAssignees,
-                'id',
-            ),
-        );
+          $this->activityNotifications->notify(
+              $activity,
+              array_column(
+                  $addedAssignees,
+                  'id',
+              ),
+          );
       }
-
 
        return response()->json([
            'message' =>
@@ -690,27 +705,35 @@ $task = $this->loadTaskForResponse(
          (int) $request->user()->id,
      );
      if (
-         $previousStatus !==
-         $task->status->value
-     ) {
-         $this->activityLogger->log(
-             project: $project,
-             type:
-                 ProjectActivityType::TaskStatusChanged,
-             actor: $request->user(),
-             subjectType:
-                 ProjectActivitySubjectType::Task,
-             subjectId: $task->id,
-             subjectLabel: $task->title,
-             metadata: [
-                 'from' =>
-                     $previousStatus,
+             $previousStatus !==
+             $task->status->value
+         ) {
+             $activity =
+                 $this->activityLogger->log(
+                     project: $project,
+                     type:
+                         ProjectActivityType::TaskStatusChanged,
+                     actor: $request->user(),
+                     subjectType:
+                         ProjectActivitySubjectType::Task,
+                     subjectId: $task->id,
+                     subjectLabel: $task->title,
+                     metadata: [
+                         'from' =>
+                             $previousStatus,
 
-                 'to' =>
-                     $task->status->value,
-             ],
-         );
-     }
+                         'to' =>
+                             $task->status->value,
+                     ],
+                 );
+
+             $this->activityNotifications->notify(
+                 $activity,
+                 $this->taskWatcherIds(
+                     $task,
+                 ),
+             );
+         }
 
        return response()->json([
            'message' =>
@@ -759,21 +782,32 @@ $task = $this->loadTaskForResponse(
             $task
         );
 
-        $taskId = $task->id;
-        $taskTitle = $task->title;
+     $taskId = $task->id;
+     $taskTitle = $task->title;
 
-        $task->delete();
+     $notificationRecipientIds =
+         $this->taskWatcherIds(
+             $task,
+         );
 
-        $this->activityLogger->log(
-            project: $project,
-            type:
-                ProjectActivityType::TaskDeleted,
-            actor: $user,
-            subjectType:
-                ProjectActivitySubjectType::Task,
-            subjectId: $taskId,
-            subjectLabel: $taskTitle,
-        );
+     $task->delete();
+
+     $activity =
+         $this->activityLogger->log(
+             project: $project,
+             type:
+                 ProjectActivityType::TaskDeleted,
+             actor: $user,
+             subjectType:
+                 ProjectActivitySubjectType::Task,
+             subjectId: $taskId,
+             subjectLabel: $taskTitle,
+         );
+
+     $this->activityNotifications->notify(
+         $activity,
+         $notificationRecipientIds,
+     );
 
         return response()->json([
             'message' =>
@@ -1104,6 +1138,24 @@ $task = $this->loadTaskForResponse(
      *
      * @param array<int, int> $assigneeIds
      */
+
+     /**
+      * @return array<int, int>
+      */
+     private function taskWatcherIds(
+         Task $task,
+     ): array {
+         return $task
+             ->watchers()
+             ->pluck('users.id')
+             ->map(
+                 static fn ($userId): int =>
+                     (int) $userId,
+             )
+             ->unique()
+             ->values()
+             ->all();
+     }
     private function syncTaskParticipants(
         Task $task,
         array $assigneeIds,
