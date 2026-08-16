@@ -10,19 +10,15 @@ use RuntimeException;
 
 class VpnSessionService
 {
-    private const READER_COMMAND = 'sudo -n /usr/local/bin/task-manager-vpn-sessions';
+    private const READER_COMMAND =
+        'sudo -n /usr/local/bin/task-manager-vpn-sessions';
 
     /**
      * @return array{
      *     total: int,
-     *     sessions: array<int, array{
-     *         pid: int,
-     *         ssh_user: string,
-     *         client_ip: string,
-     *         client_port: int,
-     *         elapsed_seconds: int,
-     *         active_connections: int
-     *     }>
+     *     summary: array<string, int>,
+     *     sessions: array<int, array<string, mixed>>,
+     *     connections: array<int, array<string, mixed>>
      * }
      */
     public function getActiveSessions(): array
@@ -32,7 +28,7 @@ class VpnSessionService
 
         if ($result->failed()) {
             throw new RuntimeException(
-                'Unable to read VPN sessions.',
+                'Unable to read server connections.',
             );
         }
 
@@ -45,31 +41,64 @@ class VpnSessionService
             );
         } catch (JsonException $exception) {
             throw new RuntimeException(
-                'VPN session reader returned invalid JSON.',
+                'Server connection reader returned invalid JSON.',
                 previous: $exception,
             );
         }
 
-        if (
-            ! is_array($payload) ||
-            ! isset($payload['sessions']) ||
-            ! is_array($payload['sessions'])
-        ) {
+        if (! is_array($payload)) {
             throw new RuntimeException(
-                'VPN session reader returned an invalid payload.',
+                'Server connection reader returned an invalid payload.',
             );
         }
 
-        $sessions = array_values(
+        $summary = $payload['summary'] ?? null;
+        $sessions = $payload['sessions'] ?? null;
+        $connections = $payload['connections'] ?? null;
+
+        if (
+            ! is_array($summary) ||
+            ! is_array($sessions) ||
+            ! is_array($connections)
+        ) {
+            throw new RuntimeException(
+                'Server connection reader returned an invalid payload.',
+            );
+        }
+
+        $normalizedSummary = [];
+
+        foreach ($summary as $key => $value) {
+            if (! is_string($key)) {
+                continue;
+            }
+
+            if (! is_int($value) && ! is_numeric($value)) {
+                continue;
+            }
+
+            $normalizedSummary[$key] = (int) $value;
+        }
+
+        $normalizedSessions = array_values(
             array_filter(
-                $payload['sessions'],
+                $sessions,
                 static fn (mixed $session): bool => is_array($session),
             ),
         );
 
+        $normalizedConnections = array_values(
+            array_filter(
+                $connections,
+                static fn (mixed $connection): bool => is_array($connection),
+            ),
+        );
+
         return [
-            'total' => count($sessions),
-            'sessions' => $sessions,
+            'total' => count($normalizedConnections),
+            'summary' => $normalizedSummary,
+            'sessions' => $normalizedSessions,
+            'connections' => $normalizedConnections,
         ];
     }
 }
