@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\WorkspaceMemberController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\VpnSessionController;
+use App\Http\Middleware\EnsureCanAccessVpnSessions;
 
 /*
 |--------------------------------------------------------------------------
@@ -746,6 +748,23 @@ Route::prefix('workspaces')
             ],
         );
     });
+
+/*
+|--------------------------------------------------------------------------
+| VPN Sessions
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/vpn/sessions',
+    VpnSessionController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
 
 /*
 |--------------------------------------------------------------------------
