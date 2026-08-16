@@ -401,9 +401,7 @@ while IFS= read -r line; do
         ); then
             type="ssh_preauth"
 
-            ssh_preauth_connections=$(
-                (ssh_preauth_connections + 1)
-            )
+         ssh_preauth_connections=$((ssh_preauth_connections + 1))
 
         #
         # Authenticated or otherwise established SSH connection that
@@ -413,9 +411,7 @@ while IFS= read -r line; do
         else
             type="ssh_other"
 
-            ssh_other_connections=$(
-                (ssh_other_connections + 1)
-            )
+          ssh_other_connections=$((ssh_other_connections + 1))
         fi
 
     #
@@ -425,9 +421,7 @@ while IFS= read -r line; do
     elif [[ "${process_name}" == "outline-ss-serv" ]]; then
         type="outline"
 
-        outline_tcp_connections=$(
-            (outline_tcp_connections + 1)
-        )
+    outline_tcp_connections=$((outline_tcp_connections + 1))
 
         outline_client_ips["${client_ip}"]=1
 
@@ -444,9 +438,7 @@ while IFS= read -r line; do
     ); then
         type="web"
 
-        web_connections=$(
-            (web_connections + 1)
-        )
+     web_connections=$((web_connections + 1))
 
         web_client_ips["${client_ip}"]=1
 
@@ -455,14 +447,10 @@ while IFS= read -r line; do
     #
 
     else
-        other_connections=$(
-            (other_connections + 1)
-        )
+   other_connections=$((other_connections + 1))
     fi
 
-    inbound_tcp_connections=$(
-        (inbound_tcp_connections + 1)
-    )
+  inbound_tcp_connections=$((inbound_tcp_connections + 1))
 
     all_client_ips["${client_ip}"]=1
 
