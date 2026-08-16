@@ -65,7 +65,7 @@ class StoreTaskCommentRequest extends FormRequest
                 'nullable',
                 'file',
                 'max:10240',
-                'mimetypes:audio/webm,audio/mp4,video/mp4,audio/mpeg,audio/aac,audio/x-m4a',
+                'mimetypes:audio/webm,video/webm,audio/mp4,video/mp4,audio/mpeg,audio/aac,audio/x-m4a',
             ],
 
             'voice_duration_ms' => [
