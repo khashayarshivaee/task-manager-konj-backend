@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-
+use Illuminate\Database\Eloquent\Relations\HasOne;
 class TaskComment extends Model
 {
     use SoftDeletes;
@@ -84,9 +84,18 @@ class TaskComment extends Model
                         'uploader:id,name',
                     ),
 
+                'voiceMessage' => fn (
+                    HasOne $query,
+                ) => $query->with(
+                    'uploader:id,name',
+                ),
+
                 'repliesRecursive',
             ]);
+
+
     }
+
 
     public function attachments(): HasMany
     {
@@ -96,5 +105,13 @@ class TaskComment extends Model
                 'comment_id',
             )
             ->oldest('id');
+    }
+
+    public function voiceMessage(): HasOne
+    {
+        return $this->hasOne(
+            TaskCommentVoiceMessage::class,
+            'comment_id',
+        );
     }
 }

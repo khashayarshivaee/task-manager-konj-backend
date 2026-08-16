@@ -65,6 +65,15 @@ class TaskCommentResource extends JsonResource
                     ),
                 ),
 
+            'voice_message' =>
+                $isDeleted
+                    ? null
+                    : new TaskCommentVoiceMessageResource(
+                    $this->whenLoaded(
+                        'voiceMessage',
+                    ),
+                ),
+
             'replies' =>
                 TaskCommentResource::collection(
                     $this->whenLoaded(

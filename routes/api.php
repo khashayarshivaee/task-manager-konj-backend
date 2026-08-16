@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\ProjectMemberController;
 use App\Http\Controllers\Api\ProjectTaskCalendarController;
 use App\Http\Controllers\Api\ProjectTaskSummaryController;
 use App\Http\Controllers\Api\TaskAttachmentController;
+use App\Http\Controllers\Api\TaskCommentVoiceMessageController;
 use App\Http\Controllers\Api\TaskCommentAttachmentController;
 use App\Http\Controllers\Api\TaskCommentController;
 use App\Http\Controllers\Api\TaskCommentReadController;
@@ -719,6 +720,28 @@ Route::prefix('workspaces')
             '/{workspace}/projects/{project}/tasks/{task}/comments/{comment}/attachments/{attachment}',
             [
                 TaskCommentAttachmentController::class,
+                'destroy',
+            ],
+        );
+
+        /*
+|--------------------------------------------------------------------------
+| Task Comment Voice Messages
+|--------------------------------------------------------------------------
+*/
+
+        Route::get(
+            '/{workspace}/projects/{project}/tasks/{task}/comments/{comment}/voice/file',
+            [
+                TaskCommentVoiceMessageController::class,
+                'file',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/projects/{project}/tasks/{task}/comments/{comment}/voice',
+            [
+                TaskCommentVoiceMessageController::class,
                 'destroy',
             ],
         );

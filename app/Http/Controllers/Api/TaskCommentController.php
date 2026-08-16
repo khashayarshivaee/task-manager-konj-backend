@@ -77,6 +77,12 @@ class TaskCommentController extends Controller
                             'uploader:id,name',
                         ),
 
+                    'voiceMessage' => fn (
+                        $query,
+                    ) => $query->with(
+                        'uploader:id,name',
+                    ),
+
                     'repliesRecursive',
                 ])
                 ->oldest('id')
@@ -132,6 +138,22 @@ public function store(
             [],
         );
 
+    /** @var UploadedFile|null $voice */
+    $voice = $request->file(
+        'voice',
+    );
+
+    $voiceDurationMs =
+        isset(
+            $validated[
+            'voice_duration_ms'
+            ],
+        )
+            ? (int) $validated[
+        'voice_duration_ms'
+        ]
+            : null;
+
         $storedFiles = [];
 
         try {
@@ -143,6 +165,8 @@ public function store(
                     $parentId,
                     $images,
                     $discussionRead,
+                    $voice,
+                    $voiceDurationMs,
                     &$storedFiles,
                 ): TaskComment {
 
@@ -227,11 +251,77 @@ public function store(
                                         ->getSize(),
                             ]);
                     }
+
+                    if ($voice instanceof UploadedFile) {
+                        $extension =
+                            strtolower(
+                                $voice->guessExtension()
+                                    ?: 'm4a',
+                            );
+
+                        $fileName =
+                            Str::uuid()
+                                ->toString()
+                            .'.'
+                            .$extension;
+
+                        $directory =
+                            'task-comments/'
+                            .$task->id
+                            .'/'
+                            .$comment->id
+                            .'/voice';
+
+                        $path =
+                            $voice->storeAs(
+                                $directory,
+                                $fileName,
+                                'local',
+                            );
+
+                        if (!is_string($path)) {
+                            throw new RuntimeException(
+                                'Unable to store comment voice message.',
+                            );
+                        }
+
+                        $storedFiles[] = $path;
+
+                        $comment
+                            ->voiceMessage()
+                            ->create([
+                                'uploaded_by' =>
+                                    $user->id,
+
+                                'disk' =>
+                                    'local',
+
+                                'path' =>
+                                    $path,
+
+                                'original_name' =>
+                                    $voice
+                                        ->getClientOriginalName(),
+
+                                'mime_type' =>
+                                    $voice
+                                        ->getMimeType()
+                                        ?: 'application/octet-stream',
+
+                                'size' =>
+                                    $voice->getSize(),
+
+                                'duration_ms' =>
+                                    $voiceDurationMs,
+                            ]);
+                    }
                     $discussionRead
                         ->ensureWatchingAtLatest(
                             $task,
                             $user,
                         );
+
+
 
                     $discussionRead
                         ->markReadThrough(
@@ -264,6 +354,11 @@ public function store(
                 ->with(
                     'uploader:id,name',
                 ),
+            'voiceMessage' => fn (
+                $query,
+            ) => $query->with(
+                'uploader:id,name',
+            ),
 
             'repliesRecursive',
         ]);
@@ -392,26 +487,29 @@ public function store(
             'body',
         );
 
-        if (
-            $body === null &&
-            !$comment
-                ->attachments()
-                ->exists()
-        ) {
-            return response()->json(
-                [
-                    'message' =>
-                        'A comment must contain text or at least one image.',
+      if (
+          $body === null &&
+          !$comment
+              ->attachments()
+              ->exists() &&
+          !$comment
+              ->voiceMessage()
+              ->exists()
+      ) {
+          return response()->json(
+              [
+                  'message' =>
+                      'A comment must contain text, at least one image, or a voice message.',
 
-                    'errors' => [
-                        'body' => [
-                            'A comment must contain text or at least one image.',
-                        ],
-                    ],
-                ],
-                422,
-            );
-        }
+                  'errors' => [
+                      'body' => [
+                          'A comment must contain text, at least one image, or a voice message.',
+                      ],
+                  ],
+              ],
+              422,
+          );
+      }
 
         $comment->forceFill([
             'body' => $body,
@@ -476,6 +574,12 @@ public function store(
                 ->with(
                     'uploader:id,name',
                 ),
+
+            'voiceMessage' => fn (
+                $query,
+            ) => $query->with(
+                'uploader:id,name',
+            ),
 
             'repliesRecursive',
         ]);
@@ -559,26 +663,42 @@ public function store(
                 ->attachments()
                 ->get();
 
-        DB::transaction(
-            function () use (
-                $comment,
-                $attachments,
-            ): void {
-                foreach (
-                    $attachments as $attachment
-                ) {
-                    Storage::disk(
-                        $attachment->disk,
-                    )->delete(
-                        $attachment->path,
-                    );
+       $voiceMessage =
+           $comment
+               ->voiceMessage()
+               ->first();
 
-                    $attachment->delete();
-                }
+       DB::transaction(
+           function () use (
+               $comment,
+               $attachments,
+               $voiceMessage,
+           ): void {
+               foreach (
+                   $attachments as $attachment
+               ) {
+                   Storage::disk(
+                       $attachment->disk,
+                   )->delete(
+                       $attachment->path,
+                   );
 
-                $comment->delete();
-            },
-        );
+                   $attachment->delete();
+               }
+
+               if ($voiceMessage !== null) {
+                   Storage::disk(
+                       $voiceMessage->disk,
+                   )->delete(
+                       $voiceMessage->path,
+                   );
+
+                   $voiceMessage->delete();
+               }
+
+               $comment->delete();
+           },
+       );
         $activity =
             $this->activityLogger->log(
                 project: $project,
@@ -634,6 +754,14 @@ public function store(
         );
 
         if ($body === '') {
+            if (
+                $comment
+                    ->voiceMessage()
+                    ->exists()
+            ) {
+                return 'Voice comment';
+            }
+
             return 'Image comment';
         }
 

@@ -4,38 +4,27 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\WorkspaceRole;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskComment;
-use App\Models\TaskCommentAttachment;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Models\WorkspaceMembership;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Facades\Gate;
-use App\Enums\ProjectActivitySubjectType;
-use App\Enums\ProjectActivityType;
-use App\Services\ProjectActivityLogger;
-use App\Services\ProjectActivityNotificationService;
-class TaskCommentAttachmentController extends Controller
-{
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\Enums\WorkspaceRole;
+use Illuminate\Http\JsonResponse;
 
-   public function __construct(
-       private readonly ProjectActivityLogger $activityLogger,
-       private readonly ProjectActivityNotificationService $activityNotifications,
-   ) {
-   }
+class TaskCommentVoiceMessageController extends Controller
+{
     public function file(
         Workspace $workspace,
         Project $project,
         Task $task,
         TaskComment $comment,
-        TaskCommentAttachment $attachment,
-    ): StreamedResponse {
+    ): BinaryFileResponse {
         $user = request()->user();
 
         abort_unless(
@@ -43,44 +32,54 @@ class TaskCommentAttachmentController extends Controller
             401,
         );
 
-        $this->assertAttachmentContext(
+        $this->assertCommentContext(
             $workspace,
             $project,
             $task,
             $comment,
-            $attachment,
             $user,
         );
+
         Gate::authorize(
             'participateInDiscussion',
             $task,
         );
 
-        abort_unless(
+        $voiceMessage =
+            $comment
+                ->voiceMessage()
+                ->firstOrFail();
+
+        $disk =
             Storage::disk(
-                $attachment->disk,
-            )->exists(
-                $attachment->path,
+                $voiceMessage->disk,
+            );
+
+        abort_unless(
+            $disk->exists(
+                $voiceMessage->path,
             ),
             404,
         );
 
-        return Storage::disk(
-            $attachment->disk,
-        )->response(
-            $attachment->path,
-            $attachment->original_name,
+        return response()->file(
+            $disk->path(
+                $voiceMessage->path,
+            ),
             [
                 'Content-Type' =>
-                    $attachment->mime_type,
+                    $voiceMessage->mime_type,
 
                 'Content-Disposition' =>
                     'inline; filename="'
                     .addslashes(
-                        $attachment
+                        $voiceMessage
                             ->original_name,
                     )
                     .'"',
+
+                'Accept-Ranges' =>
+                    'bytes',
             ],
         );
     }
@@ -90,7 +89,6 @@ class TaskCommentAttachmentController extends Controller
         Project $project,
         Task $task,
         TaskComment $comment,
-        TaskCommentAttachment $attachment,
     ): JsonResponse {
         $user = request()->user();
 
@@ -99,24 +97,29 @@ class TaskCommentAttachmentController extends Controller
             401,
         );
 
-        $this->assertAttachmentContext(
+        $this->assertCommentContext(
             $workspace,
             $project,
             $task,
             $comment,
-            $attachment,
             $user,
         );
+
         Gate::authorize(
             'participateInDiscussion',
             $task,
         );
 
+        $voiceMessage =
+            $comment
+                ->voiceMessage()
+                ->firstOrFail();
+
         abort_unless(
-            $attachment->uploaded_by
-                === $user->id
+            $voiceMessage->uploaded_by
+            === $user->id
             || $comment->user_id
-                === $user->id
+            === $user->id
             || $this->isWorkspaceManager(
                 $workspace,
                 $user,
@@ -124,129 +127,66 @@ class TaskCommentAttachmentController extends Controller
             403,
         );
 
-        $attachmentId =
-            $attachment->id;
-
-        $attachmentName =
-            $attachment->original_name;
-
-        $attachmentMimeType =
-            $attachment->mime_type;
-
-        $attachmentSize =
-            $attachment->size;
-
         $remainingContent =
             trim(
                 (string) $comment->body,
             ) !== ''
             || $comment
                 ->attachments()
-                ->whereKeyNot(
-                    $attachment->id,
-                )
-                ->exists()
-            || $comment
-                ->voiceMessage()
                 ->exists();
 
         if (!$remainingContent) {
             return response()->json(
                 [
                     'message' =>
-                        'A comment must contain text or at least one image.',
+                        'A comment must contain text, at least one image, or a voice message.',
                 ],
                 422,
             );
         }
 
         Storage::disk(
-            $attachment->disk,
+            $voiceMessage->disk,
         )->delete(
-            $attachment->path,
+            $voiceMessage->path,
         );
 
-        $attachment->delete();
-
-        $activity =
-            $this->activityLogger->log(
-                project: $project,
-                type:
-                    ProjectActivityType::CommentAttachmentRemoved,
-                actor: $user,
-                subjectType:
-                    ProjectActivitySubjectType::CommentAttachment,
-                subjectId:
-                    $attachmentId,
-                subjectLabel:
-                    $attachmentName,
-                metadata: [
-                    'task_id' =>
-                        $task->id,
-
-                    'comment_id' =>
-                        $comment->id,
-
-                    'mime_type' =>
-                        $attachmentMimeType,
-
-                    'size' =>
-                        $attachmentSize,
-                ],
-            );
-
-        $this->activityNotifications->notify(
-            $activity,
-            $task
-                ->watchers()
-                ->pluck('users.id')
-                ->map(
-                    static fn ($userId): int =>
-                        (int) $userId,
-                ),
-        );
+        $voiceMessage->delete();
 
         return response()->json([
             'message' =>
-                'Comment image deleted successfully.',
+                'Comment voice message deleted successfully.',
         ]);
     }
 
-    private function assertAttachmentContext(
+    private function assertCommentContext(
         Workspace $workspace,
         Project $project,
         Task $task,
         TaskComment $comment,
-        TaskCommentAttachment $attachment,
         User $user,
     ): void {
         abort_if(
             $project->workspace_id
-                !== $workspace->id,
+            !== $workspace->id,
             404,
         );
 
         abort_if(
             $task->project_id
-                !== $project->id,
+            !== $project->id,
             404,
         );
 
         abort_if(
             $comment->task_id
-                !== $task->id,
-            404,
-        );
-
-        abort_if(
-            $attachment->comment_id
-                !== $comment->id,
+            !== $task->id,
             404,
         );
 
         abort_unless(
             $workspace->owner_id ===
-                $user->id
+            $user->id
             || WorkspaceMembership::query()
                 ->where(
                     'workspace_id',

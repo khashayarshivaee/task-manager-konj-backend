@@ -60,6 +60,21 @@ class StoreTaskCommentRequest extends FormRequest
                 'mimes:jpg,jpeg,png,webp',
                 'max:10240',
             ],
+
+            'voice' => [
+                'nullable',
+                'file',
+                'max:10240',
+                'mimetypes:audio/webm,audio/mp4,audio/mpeg,audio/aac,audio/x-m4a',
+            ],
+
+            'voice_duration_ms' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:180000',
+                'required_with:voice',
+            ],
         ];
     }
 
@@ -82,15 +97,20 @@ class StoreTaskCommentRequest extends FormRequest
                     [],
                 );
 
+                $voice = $this->file(
+                    'voice',
+                );
+
                 if (
                     $body === '' &&
-                    count($images) === 0
+                    count($images) === 0 &&
+                    $voice === null
                 ) {
                     $validator
                         ->errors()
                         ->add(
                             'body',
-                            'A comment must contain text or at least one image.',
+                            'A comment must contain text, at least one image, or a voice message.',
                         );
                 }
 

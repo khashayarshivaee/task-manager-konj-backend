@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Enums\WorkspaceRole;
 use App\Models\TaskComment;
 use App\Models\TaskCommentAttachment;
+use App\Models\TaskCommentVoiceMessage;
 use App\Models\User;
 use App\Models\WorkspaceMembership;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -253,6 +254,181 @@ class TaskCommentApiTest extends TestCase
 
                 'original_name' =>
                     'design.jpg',
+            ],
+        );
+    }
+
+    public function test_workspace_member_can_create_voice_only_comment(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'voice.m4a',
+                    512,
+                    'audio/mp4',
+                );
+
+        $response =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        18500,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath(
+                'data.comment.body',
+                null,
+            )
+            ->assertJsonPath(
+                'data.comment.voice_message.original_name',
+                'voice.m4a',
+            )
+            ->assertJsonPath(
+                'data.comment.voice_message.mime_type',
+                'audio/mp4',
+            )
+            ->assertJsonPath(
+                'data.comment.voice_message.duration_ms',
+                18500,
+            )
+            ->assertJsonCount(
+                0,
+                'data.comment.attachments',
+            );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->firstOrFail();
+
+        $this->assertDatabaseHas(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessage->id,
+
+                'comment_id' =>
+                    $voiceMessage->comment_id,
+
+                'uploaded_by' =>
+                    $this->owner->id,
+
+                'original_name' =>
+                    'voice.m4a',
+
+                'duration_ms' =>
+                    18500,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertExists(
+                $voiceMessage->path,
+            );
+
+        $this->assertDatabaseHas(
+            'project_activities',
+            [
+                'actor_id' =>
+                    $this->owner->id,
+
+                'type' =>
+                    'comment_created',
+
+                'subject_type' =>
+                    'comment',
+
+                'subject_id' =>
+                    $voiceMessage->comment_id,
+
+                'subject_label' =>
+                    'Voice comment',
+            ],
+        );
+    }
+
+    public function test_voice_only_comment_can_keep_empty_body_when_updated(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'voice.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        9200,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse
+            ->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $this->putJson(
+            $this->commentUrl(
+                $commentId,
+            ),
+            [
+                'body' => '   ',
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.comment.body',
+                null,
+            )
+            ->assertJsonPath(
+                'data.comment.voice_message.duration_ms',
+                9200,
+            );
+
+        $this->assertDatabaseHas(
+            'task_comments',
+            [
+                'id' =>
+                    $commentId,
+
+                'body' =>
+                    null,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'task_comment_voice_messages',
+            [
+                'comment_id' =>
+                    $commentId,
             ],
         );
     }
@@ -861,6 +1037,549 @@ class TaskCommentApiTest extends TestCase
         Storage::disk('local')
             ->assertExists(
                 $attachment->path,
+            );
+    }
+
+    public function test_last_image_can_be_deleted_when_voice_message_remains(): void
+    {
+        Storage::fake('local');
+
+        $image =
+            UploadedFile::fake()
+                ->image(
+                    'voice-with-image.jpg',
+                );
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'voice.m4a',
+                    320,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'images' => [
+                        $image,
+                    ],
+
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        12400,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse
+            ->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $attachmentId =
+            (int) $commentResponse->json(
+                'data.comment.attachments.0.id',
+            );
+
+        $attachment =
+            TaskCommentAttachment::query()
+                ->findOrFail(
+                    $attachmentId,
+                );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->where(
+                    'comment_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $attachmentPath =
+            $attachment->path;
+
+        $voicePath =
+            $voiceMessage->path;
+
+        $this->deleteJson(
+            $this->commentAttachmentUrl(
+                $commentId,
+                $attachmentId,
+            ),
+        )->assertOk();
+
+        $this->assertDatabaseMissing(
+            'task_comment_attachments',
+            [
+                'id' =>
+                    $attachmentId,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertMissing(
+                $attachmentPath,
+            );
+
+        $this->assertDatabaseHas(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessage->id,
+
+                'comment_id' =>
+                    $commentId,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertExists(
+                $voicePath,
+            );
+    }
+
+    public function test_deleting_comment_removes_private_voice_file(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'delete-me.m4a',
+                    400,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        15300,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse
+            ->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->where(
+                    'comment_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $voiceMessageId =
+            $voiceMessage->id;
+
+        $voicePath =
+            $voiceMessage->path;
+
+        Storage::disk('local')
+            ->assertExists(
+                $voicePath,
+            );
+
+        $this->deleteJson(
+            $this->commentUrl(
+                $commentId,
+            ),
+        )->assertOk();
+
+        $this->assertDatabaseMissing(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessageId,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertMissing(
+                $voicePath,
+            );
+
+        $this->assertSoftDeleted(
+            'task_comments',
+            [
+                'id' =>
+                    $commentId,
+            ],
+        );
+    }
+
+    public function test_workspace_member_can_access_private_voice_message(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'private-voice.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        11000,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse
+            ->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $member =
+            $this->createWorkspaceMember();
+
+        Sanctum::actingAs(
+            $member,
+        );
+
+        $this->postJson(
+            $this->watchUrl(),
+        )->assertOk();
+
+        $this->get(
+            $this->commentVoiceFileUrl(
+                $commentId,
+            ),
+            [
+                'Accept' =>
+                    'audio/mp4',
+            ],
+        )
+            ->assertOk()
+            ->assertHeader(
+                'content-type',
+                'audio/mp4',
+            );
+    }
+
+    public function test_non_workspace_member_cannot_access_private_voice_message(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'private-voice.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        8000,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse
+            ->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $outsider =
+            User::factory()->create();
+
+        Sanctum::actingAs(
+            $outsider,
+        );
+
+        $this->get(
+            $this->commentVoiceFileUrl(
+                $commentId,
+            ),
+            [
+                'Accept' =>
+                    'audio/mp4',
+            ],
+        )->assertForbidden();
+    }
+
+    public function test_comment_author_can_delete_voice_when_text_remains(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'removable-voice.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'body' =>
+                        'Text remains after voice deletion.',
+
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        10000,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->where(
+                    'comment_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $voicePath =
+            $voiceMessage->path;
+
+        $this->deleteJson(
+            $this->commentVoiceUrl(
+                $commentId,
+            ),
+        )->assertOk();
+
+        $this->assertDatabaseMissing(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessage->id,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertMissing(
+                $voicePath,
+            );
+
+        $this->assertDatabaseHas(
+            'task_comments',
+            [
+                'id' =>
+                    $commentId,
+
+                'body' =>
+                    'Text remains after voice deletion.',
+            ],
+        );
+    }
+
+    public function test_comment_author_can_delete_voice_when_image_remains(): void
+    {
+        Storage::fake('local');
+
+        $image =
+            UploadedFile::fake()
+                ->image(
+                    'remaining-image.jpg',
+                );
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'removable-voice.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'images' => [
+                        $image,
+                    ],
+
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        12000,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $attachmentId =
+            (int) $commentResponse->json(
+                'data.comment.attachments.0.id',
+            );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->where(
+                    'comment_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $this->deleteJson(
+            $this->commentVoiceUrl(
+                $commentId,
+            ),
+        )->assertOk();
+
+        $this->assertDatabaseMissing(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessage->id,
+            ],
+        );
+
+        $this->assertDatabaseHas(
+            'task_comment_attachments',
+            [
+                'id' =>
+                    $attachmentId,
+
+                'comment_id' =>
+                    $commentId,
+            ],
+        );
+    }
+
+    public function test_voice_only_comment_cannot_delete_its_voice_message(): void
+    {
+        Storage::fake('local');
+
+        $voice =
+            UploadedFile::fake()
+                ->create(
+                    'only-content.m4a',
+                    256,
+                    'audio/mp4',
+                );
+
+        $commentResponse =
+            $this->post(
+                $this->commentsUrl(),
+                [
+                    'voice' =>
+                        $voice,
+
+                    'voice_duration_ms' =>
+                        7000,
+                ],
+                [
+                    'Accept' =>
+                        'application/json',
+                ],
+            );
+
+        $commentResponse->assertCreated();
+
+        $commentId =
+            (int) $commentResponse->json(
+                'data.comment.id',
+            );
+
+        $voiceMessage =
+            TaskCommentVoiceMessage::query()
+                ->where(
+                    'comment_id',
+                    $commentId,
+                )
+                ->firstOrFail();
+
+        $voicePath =
+            $voiceMessage->path;
+
+        $this->deleteJson(
+            $this->commentVoiceUrl(
+                $commentId,
+            ),
+        )
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'A comment must contain text, at least one image, or a voice message.',
+            );
+
+        $this->assertDatabaseHas(
+            'task_comment_voice_messages',
+            [
+                'id' =>
+                    $voiceMessage->id,
+            ],
+        );
+
+        Storage::disk('local')
+            ->assertExists(
+                $voicePath,
             );
     }
 
@@ -1767,6 +2486,24 @@ class TaskCommentApiTest extends TestCase
             $attachmentId,
         )
             .'/file';
+    }
+
+    private function commentVoiceFileUrl(
+        int $commentId,
+    ): string {
+        return $this->commentUrl(
+                $commentId,
+            )
+            .'/voice/file';
+    }
+
+    private function commentVoiceUrl(
+        int $commentId,
+    ): string {
+        return $this->commentUrl(
+                $commentId,
+            )
+            .'/voice';
     }
 
 
