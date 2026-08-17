@@ -1,7 +1,7 @@
 <?php
 
 declare(strict_types=1);
-
+use App\Http\Controllers\Api\VpnUserDestinationController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EmailVerificationController;
@@ -822,6 +822,14 @@ Route::post(
         'verified',
         EnsureCanAccessVpnSessions::class,
     ]);
+
+Route::get(
+    '/vpn/users/{vpnUser}/destinations',
+    [
+        VpnUserDestinationController::class,
+        'index',
+    ],
+);
 
 
 

@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\VpnUserDestination;
 class VpnUser extends Model
 {
     use HasFactory;
@@ -49,5 +50,12 @@ class VpnUser extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    public function destinations(): HasMany
+    {
+        return $this->hasMany(
+            VpnUserDestination::class,
+        );
     }
 }
