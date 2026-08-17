@@ -107,8 +107,20 @@ class VpnUserTest extends TestCase
                 true,
             )
             ->assertJsonPath(
+                'data.is_online',
+                false,
+            )
+            ->assertJsonPath(
+                'data.online_sessions',
+                0,
+            )
+            ->assertJsonPath(
                 'data.flow',
                 'xtls-rprx-vision',
+            )
+            ->assertJsonPath(
+                'data.stats.total_bytes',
+                0,
             )
             ->assertJsonPath(
                 'data.connection.server',
@@ -133,9 +145,15 @@ class VpnUserTest extends TestCase
                     'uuid',
                     'xray_email',
                     'is_active',
+                    'is_online',
+                    'online_sessions',
                     'flow',
+                    'stats' => [
+                        'uplink_bytes',
+                        'downlink_bytes',
+                        'total_bytes',
+                    ],
                     'created_at',
-
                     'connection' => [
                         'server',
                         'port',
@@ -204,7 +222,6 @@ class VpnUserTest extends TestCase
 
     public function test_allowed_user_can_list_vpn_users_with_stats(): void
     {
-
         config([
             'xray.server' => '91.98.105.190',
             'xray.port' => 443,
@@ -274,31 +291,94 @@ class VpnUserTest extends TestCase
                 'total_bytes' => 20000,
             ]);
 
+        $xrayManager
+            ->shouldReceive('getOnlineSessionCount')
+            ->once()
+            ->withArgs(
+                static fn (VpnUser $vpnUser): bool =>
+                $vpnUser->is($firstVpnUser),
+            )
+            ->andReturn(0);
+
+        $xrayManager
+            ->shouldReceive('getOnlineSessionCount')
+            ->once()
+            ->withArgs(
+                static fn (VpnUser $vpnUser): bool =>
+                $vpnUser->is($secondVpnUser),
+            )
+            ->andReturn(1);
+
         $this->app->instance(
             XrayManagerService::class,
             $xrayManager,
         );
 
-        $response = $this->getJson('/api/vpn/users');
+        $response = $this->getJson(
+            '/api/vpn/users',
+        );
 
         $response
             ->assertOk()
-            ->assertJsonCount(2, 'data')
+            ->assertJsonCount(
+                2,
+                'data',
+            )
             ->assertJsonPath(
                 'data.0.name',
                 'MacBook',
+            )
+            ->assertJsonPath(
+                'data.0.stats.uplink_bytes',
+                2000,
+            )
+            ->assertJsonPath(
+                'data.0.stats.downlink_bytes',
+                18000,
             )
             ->assertJsonPath(
                 'data.0.stats.total_bytes',
                 20000,
             )
             ->assertJsonPath(
+                'data.0.is_online',
+                true,
+            )
+            ->assertJsonPath(
+                'data.0.online_sessions',
+                1,
+            )
+            ->assertJsonPath(
+                'data.0.online_available',
+                true,
+            )
+            ->assertJsonPath(
                 'data.1.name',
                 'Khashayar iPhone',
             )
             ->assertJsonPath(
+                'data.1.stats.uplink_bytes',
+                1000,
+            )
+            ->assertJsonPath(
+                'data.1.stats.downlink_bytes',
+                9000,
+            )
+            ->assertJsonPath(
                 'data.1.stats.total_bytes',
                 10000,
+            )
+            ->assertJsonPath(
+                'data.1.is_online',
+                false,
+            )
+            ->assertJsonPath(
+                'data.1.online_sessions',
+                0,
+            )
+            ->assertJsonPath(
+                'data.1.online_available',
+                true,
             )
             ->assertJsonPath(
                 'data.0.connection.server',
@@ -368,6 +448,14 @@ class VpnUserTest extends TestCase
                 false,
             )
             ->assertJsonPath(
+                'data.is_online',
+                false,
+            )
+            ->assertJsonPath(
+                'data.online_sessions',
+                0,
+            )
+            ->assertJsonPath(
                 'data.revoked_at',
                 fn (mixed $value): bool =>
                     is_string($value) &&
@@ -392,6 +480,7 @@ class VpnUserTest extends TestCase
             ],
         );
     }
+
     public function test_other_authenticated_user_cannot_revoke_vpn_user(): void
     {
         $creator = User::factory()->create();
@@ -481,6 +570,14 @@ class VpnUserTest extends TestCase
             ->assertJsonPath(
                 'data.is_active',
                 true,
+            )
+            ->assertJsonPath(
+                'data.is_online',
+                false,
+            )
+            ->assertJsonPath(
+                'data.online_sessions',
+                0,
             )
             ->assertJsonPath(
                 'data.revoked_at',

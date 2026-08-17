@@ -167,6 +167,82 @@ class XrayManagerService
         );
     }
 
+    public function getOnlineSessionCount(
+        VpnUser $vpnUser,
+    ): int {
+        $command = sprintf(
+            '%s api statsonline --server=%s -email=%s',
+            escapeshellarg($this->binary()),
+            escapeshellarg($this->apiServer()),
+            escapeshellarg($vpnUser->xray_email),
+        );
+
+        $result = Process::timeout(5)->run($command);
+
+        if ($result->failed()) {
+            $error = sprintf(
+                '%s %s',
+                $result->output(),
+                $result->errorOutput(),
+            );
+
+            if (
+                str_contains(
+                    $error,
+                    'code = NotFound',
+                ) ||
+                str_contains(
+                    $error,
+                    '>>>online not found',
+                )
+            ) {
+                return 0;
+            }
+
+            throw new RuntimeException(
+                'Unable to read VPN user online status from Xray.',
+            );
+        }
+
+        try {
+            $payload = json_decode(
+                trim($result->output()),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+        } catch (JsonException $exception) {
+            throw new RuntimeException(
+                'Xray returned invalid online status.',
+                previous: $exception,
+            );
+        }
+
+        if (! is_array($payload)) {
+            return 0;
+        }
+
+        $stat = $payload['stat'] ?? null;
+
+        if (! is_array($stat)) {
+            return 0;
+        }
+
+        $value = $stat['value'] ?? 0;
+
+        if (
+            ! is_int($value) &&
+            ! is_numeric($value)
+        ) {
+            return 0;
+        }
+
+        return max(
+            0,
+            (int) $value,
+        );
+    }
+
     public function getUserStats(VpnUser $vpnUser): array
     {
         $pattern = sprintf(
