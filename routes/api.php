@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\TaskCommentAttachmentController;
 use App\Http\Controllers\Api\TaskCommentController;
 use App\Http\Controllers\Api\TaskCommentReadController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\VpnUserController;
 use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
@@ -765,6 +766,64 @@ Route::get(
         'verified',
         EnsureCanAccessVpnSessions::class,
     ]);
+
+Route::get(
+    '/vpn/users',
+    [
+        VpnUserController::class,
+        'index',
+    ],
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+Route::post(
+    '/vpn/users',
+    [
+        VpnUserController::class,
+        'store',
+    ],
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+Route::delete(
+    '/vpn/users/{vpnUser}',
+    [
+        VpnUserController::class,
+        'destroy',
+    ],
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+Route::post(
+    '/vpn/users/{vpnUser}/enable',
+    [
+        VpnUserController::class,
+        'enable',
+    ],
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+
 
 /*
 |--------------------------------------------------------------------------
