@@ -19,6 +19,13 @@ class InstagramAccount extends Model
         'is_active',
     ];
 
+    /**
+     * @var list<string>
+     */
+    protected $hidden = [
+        'access_token_encrypted',
+    ];
+
     protected $casts = [
         'token_expires_at' => 'datetime',
         'is_active' => 'boolean',

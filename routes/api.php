@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\TaskWatcherController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\WorkspaceDashboardController;
 use App\Http\Controllers\Api\WorkspaceMemberController;
+use App\Http\Controllers\InstagramController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -104,6 +105,8 @@ Route::prefix('auth')->group(function (): void {
                 'me',
             ],
         );
+
+
 
         Route::post(
             '/email/verification-notification',
@@ -348,6 +351,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/connect',
+            [
+                InstagramController::class,
+                'connect',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------
@@ -475,6 +486,14 @@ Route::prefix('workspaces')
             [
                 ProjectController::class,
                 'destroy',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/instagram/connect',
+            [
+                InstagramController::class,
+                'connect',
             ],
         );
 

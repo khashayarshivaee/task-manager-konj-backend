@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\InstagramAccount;
+use Illuminate\Validation\ValidationException;
 
 class InstagramConnectionService
 {
@@ -17,21 +18,53 @@ class InstagramConnectionService
         string $accessToken,
         int $workspaceId
     ): InstagramAccount {
-        $accountInfo = $this->instagramApiService
-            ->getMe($accessToken);
+        $accountInfo =
+            $this->instagramApiService->getMe(
+                $accessToken
+            );
 
-        $account = InstagramAccount::updateOrCreate(
-            [
-                'instagram_id' => $accountInfo['id'],
-            ],
-            [
-                'workspace_id' => $workspaceId,
-                'username' => $accountInfo['username'],
-                'is_active' => true,
-            ]
+        $instagramId =
+            (string) $accountInfo['id'];
+
+        $existingAccount =
+            InstagramAccount::query()
+                ->where(
+                    'instagram_id',
+                    $instagramId
+                )
+                ->first();
+
+        if (
+            $existingAccount !== null
+            && $existingAccount->workspace_id
+            !== $workspaceId
+        ) {
+            throw ValidationException::withMessages([
+                'instagram_account' => [
+                    'This Instagram account is already connected to another workspace.',
+                ],
+            ]);
+        }
+
+        $account =
+            $existingAccount
+            ?? new InstagramAccount();
+
+        $account->workspace_id =
+            $workspaceId;
+
+        $account->instagram_id =
+            $instagramId;
+
+        $account->username =
+            (string) $accountInfo['username'];
+
+        $account->is_active =
+            true;
+
+        $account->setAccessToken(
+            $accessToken
         );
-
-        $account->setAccessToken($accessToken);
 
         $account->save();
 
