@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
 #[Fillable([
     'owner_id',
     'name',
@@ -73,5 +72,10 @@ class Workspace extends Model
         return $this->hasMany(
             WorkspaceNote::class
         );
+    }
+
+    public function instagramAccounts(): HasMany
+    {
+        return $this->hasMany(InstagramAccount::class);
     }
 }

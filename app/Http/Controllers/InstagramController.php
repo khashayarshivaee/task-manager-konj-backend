@@ -72,4 +72,41 @@ class InstagramController extends Controller
             ],
         ]);
     }
+
+
+    public function show(
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json([
+                'data' => [
+                    'connected' => false,
+                    'account' => null,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'connected' => true,
+                'account' => [
+                    'id' => $account->id,
+                    'workspace_id' => $account->workspace_id,
+                    'instagram_id' => $account->instagram_id,
+                    'username' => $account->username,
+                    'is_active' => $account->is_active,
+                ],
+            ],
+        ]);
+    }
 }

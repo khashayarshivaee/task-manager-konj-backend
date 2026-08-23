@@ -359,6 +359,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram',
+            [
+                InstagramController::class,
+                'show',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------
