@@ -20,15 +20,18 @@ class InstagramConnectionService
         $accountInfo = $this->instagramApiService
             ->getMe($accessToken);
 
-        $account = new InstagramAccount();
-
-        $account->workspace_id = $workspaceId;
-        $account->instagram_id = $accountInfo['id'];
-        $account->username = $accountInfo['username'];
+        $account = InstagramAccount::updateOrCreate(
+            [
+                'instagram_id' => $accountInfo['id'],
+            ],
+            [
+                'workspace_id' => $workspaceId,
+                'username' => $accountInfo['username'],
+                'is_active' => true,
+            ]
+        );
 
         $account->setAccessToken($accessToken);
-
-        $account->is_active = true;
 
         $account->save();
 
