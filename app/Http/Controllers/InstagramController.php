@@ -109,4 +109,42 @@ class InstagramController extends Controller
             ],
         ]);
     }
+
+
+    public function disconnect(
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $account =
+            $this->instagramConnectionService->disconnect(
+                $workspace->id
+            );
+
+        if ($account === null) {
+            return response()->json([
+                'message' => 'No active Instagram account is connected.',
+                'data' => [
+                    'connected' => false,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Instagram account disconnected successfully.',
+            'data' => [
+                'connected' => false,
+                'account' => [
+                    'id' => $account->id,
+                    'workspace_id' => $account->workspace_id,
+                    'instagram_id' => $account->instagram_id,
+                    'username' => $account->username,
+                    'is_active' => $account->is_active,
+                ],
+            ],
+        ]);
+    }
 }

@@ -70,4 +70,22 @@ class InstagramConnectionService
 
         return $account;
     }
+
+    public function disconnect(
+        int $workspaceId
+    ): ?InstagramAccount {
+        $account = InstagramAccount::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return null;
+        }
+
+        $account->is_active = false;
+        $account->save();
+
+        return $account;
+    }
 }

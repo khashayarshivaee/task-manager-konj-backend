@@ -367,6 +367,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::delete(
+            '/{workspace}/instagram',
+            [
+                InstagramController::class,
+                'disconnect',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------
