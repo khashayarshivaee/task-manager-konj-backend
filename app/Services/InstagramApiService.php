@@ -39,7 +39,11 @@ class InstagramApiService
                 'fields' => implode(',', [
                     'id',
                     'username',
+                    'name',
                     'account_type',
+                    'profile_picture_url',
+                    'followers_count',
+                    'follows_count',
                     'media_count',
                 ]),
                 'access_token' => $accessToken,
