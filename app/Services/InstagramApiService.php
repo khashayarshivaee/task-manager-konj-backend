@@ -29,4 +29,30 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function getProfile(
+        string $accessToken
+    ): array {
+        $response = Http::get(
+            "{$this->baseUrl}/me",
+            [
+                'fields' => implode(',', [
+                    'id',
+                    'username',
+                    'account_type',
+                    'media_count',
+                ]),
+                'access_token' => $accessToken,
+            ]
+        );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram profile request failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }
