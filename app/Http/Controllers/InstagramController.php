@@ -9,7 +9,7 @@ use App\Services\InstagramConnectionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Http\Request;
 class InstagramController extends Controller
 {
     public function __construct(
@@ -377,6 +377,81 @@ class InstagramController extends Controller
             'data' => [
                 'media' => $media['data'],
                 'paging' => $media['paging'],
+            ],
+        ]);
+    }
+
+    public function publishImage(
+        Request $request,
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $validated = $request->validate([
+            'image_url' => [
+                'required',
+                'url',
+                'max:2048',
+            ],
+            'caption' => [
+                'nullable',
+                'string',
+                'max:2200',
+            ],
+        ]);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $result = app(
+            \App\Services\InstagramApiService::class
+        )->publishImage(
+            $accessToken,
+            (string) $account->instagram_id,
+            $validated['image_url'],
+            $validated['caption'] ?? null
+        );
+
+        return response()->json([
+            'message' =>
+                'Instagram image published successfully.',
+
+            'data' => [
+                'container_id' =>
+                    $result['container_id'],
+
+                'media_id' =>
+                    $result['media_id'],
             ],
         ]);
     }

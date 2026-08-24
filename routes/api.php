@@ -407,6 +407,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/media/image',
+            [
+                InstagramController::class,
+                'publishImage',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

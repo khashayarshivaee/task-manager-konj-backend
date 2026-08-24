@@ -173,4 +173,98 @@ class InstagramApiService
             'paging' => $response->json('paging'),
         ];
     }
+
+    public function createImageContainer(
+        string $accessToken,
+        string $instagramId,
+        string $imageUrl,
+        ?string $caption = null
+    ): array {
+        $payload = [
+            'image_url' => $imageUrl,
+        ];
+
+        if (
+            is_string($caption)
+            && trim($caption) !== ''
+        ) {
+            $payload['caption'] = $caption;
+        }
+
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                $payload
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram image container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function publishContainer(
+        string $accessToken,
+        string $instagramId,
+        string $creationId
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media_publish",
+                [
+                    'creation_id' => $creationId,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram media publish failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function publishImage(
+        string $accessToken,
+        string $instagramId,
+        string $imageUrl,
+        ?string $caption = null
+    ): array {
+        $container = $this->createImageContainer(
+            $accessToken,
+            $instagramId,
+            $imageUrl,
+            $caption
+        );
+
+        $creationId = $container['id'] ?? null;
+
+        if (
+            !is_string($creationId)
+            || trim($creationId) === ''
+        ) {
+            throw new RuntimeException(
+                'Instagram did not return a media container ID.'
+            );
+        }
+
+        $publishedMedia = $this->publishContainer(
+            $accessToken,
+            $instagramId,
+            $creationId
+        );
+
+        return [
+            'container_id' => $creationId,
+            'media_id' => $publishedMedia['id'] ?? null,
+        ];
+    }
 }
