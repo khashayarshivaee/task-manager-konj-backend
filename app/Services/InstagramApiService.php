@@ -256,6 +256,25 @@ class InstagramApiService
             );
         }
 
+        $containerStatus = $this->getContainerStatus(
+            $accessToken,
+            $creationId
+        );
+
+        $statusCode = $containerStatus['status_code'] ?? null;
+
+        if ($statusCode !== 'FINISHED') {
+            return [
+                'published' => false,
+                'container_id' => $creationId,
+                'media_id' => null,
+                'status_code' => is_string($statusCode)
+                    ? $statusCode
+                    : null,
+                'status' => $containerStatus['status'] ?? null,
+            ];
+        }
+
         $publishedMedia = $this->publishContainer(
             $accessToken,
             $instagramId,
@@ -263,8 +282,34 @@ class InstagramApiService
         );
 
         return [
+            'published' => true,
             'container_id' => $creationId,
             'media_id' => $publishedMedia['id'] ?? null,
+            'status_code' => 'PUBLISHED',
+            'status' => null,
         ];
+    }
+
+    public function getContainerStatus(
+        string $accessToken,
+        string $creationId
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$creationId}",
+                [
+                    'fields' => 'status_code,status',
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram container status request failed: '
+                . $response->body()
+            );
+        }
+
+
+        return $response->json();
     }
 }

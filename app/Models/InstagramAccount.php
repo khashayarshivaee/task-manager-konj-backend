@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InstagramAccount extends Model
 {
@@ -49,6 +50,13 @@ class InstagramAccount extends Model
 
         return Crypt::decryptString(
             $this->access_token_encrypted
+        );
+    }
+
+    public function publications(): HasMany
+    {
+        return $this->hasMany(
+            InstagramPublication::class
         );
     }
 }

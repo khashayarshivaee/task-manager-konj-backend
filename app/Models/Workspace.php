@@ -78,4 +78,11 @@ class Workspace extends Model
     {
         return $this->hasMany(InstagramAccount::class);
     }
+
+    public function instagramPublications(): HasMany
+    {
+        return $this->hasMany(
+            InstagramPublication::class
+        );
+    }
 }

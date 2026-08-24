@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
+use App\Models\InstagramPublication;
 class InstagramController extends Controller
 {
     public function __construct(
@@ -383,7 +384,8 @@ class InstagramController extends Controller
 
     public function publishImage(
         Request $request,
-        Workspace $workspace
+        Workspace $workspace,
+        \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
             'update',
@@ -391,10 +393,11 @@ class InstagramController extends Controller
         );
 
         $validated = $request->validate([
-            'image_url' => [
+            'image' => [
                 'required',
-                'url',
-                'max:2048',
+                'file',
+                'mimes:jpg,jpeg',
+                'max:8192',
             ],
             'caption' => [
                 'nullable',
@@ -418,41 +421,135 @@ class InstagramController extends Controller
             );
         }
 
-        $accessToken = $account->getAccessToken();
+        $image = $request->file('image');
 
-        if (
-            !is_string($accessToken)
-            || trim($accessToken) === ''
-        ) {
+        if ($image === null) {
             return response()->json(
                 [
                     'message' =>
-                        'Instagram access token is unavailable.',
+                        'Instagram image upload is required.',
                 ],
-                Response::HTTP_SERVICE_UNAVAILABLE,
+                Response::HTTP_UNPROCESSABLE_ENTITY,
             );
         }
 
-        $result = app(
-            \App\Services\InstagramApiService::class
-        )->publishImage(
-            $accessToken,
-            (string) $account->instagram_id,
-            $validated['image_url'],
-            $validated['caption'] ?? null
+        $publication = $publishingService->publishImage(
+            $workspace,
+            $account,
+            $image,
+            $validated['caption'] ?? null,
         );
 
-        return response()->json([
-            'message' =>
-                'Instagram image published successfully.',
+        $httpStatus = $publication->status === 'published'
+            ? Response::HTTP_CREATED
+            : Response::HTTP_ACCEPTED;
 
-            'data' => [
-                'container_id' =>
-                    $result['container_id'],
+        return response()->json(
+            [
+                'message' =>
+                    $publication->status === 'published'
+                        ? 'Instagram image published successfully.'
+                        : 'Instagram image accepted for processing.',
 
-                'media_id' =>
-                    $result['media_id'],
+                'data' => [
+                    'publication' => [
+                        'id' => $publication->id,
+                        'workspace_id' =>
+                            $publication->workspace_id,
+                        'instagram_account_id' =>
+                            $publication->instagram_account_id,
+                        'type' =>
+                            $publication->type,
+                        'caption' =>
+                            $publication->caption,
+                        'container_id' =>
+                            $publication->container_id,
+                        'media_id' =>
+                            $publication->media_id,
+                        'status' =>
+                            $publication->status,
+                        'published_at' =>
+                            $publication->published_at?->toISOString(),
+                    ],
+                ],
             ],
-        ]);
+            $httpStatus,
+        );
+    }
+
+    public function continuePublication(
+        Workspace $workspace,
+        InstagramPublication $publication,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        if ($publication->workspace_id !== $workspace->id) {
+            abort(Response::HTTP_NOT_FOUND);
+        }
+
+        $account = $publication->instagramAccount;
+
+        if (
+            $account === null
+            || $account->workspace_id !== $workspace->id
+        ) {
+            abort(Response::HTTP_NOT_FOUND);
+        }
+
+        $publication = $publishingService
+            ->continuePublication(
+                $publication,
+                $account
+            );
+
+        $httpStatus = match ($publication->status) {
+            'processing' => Response::HTTP_ACCEPTED,
+            'published' => Response::HTTP_OK,
+            'failed' => Response::HTTP_UNPROCESSABLE_ENTITY,
+            default => Response::HTTP_OK,
+        };
+
+        return response()->json(
+            [
+                'data' => [
+                    'publication' => [
+                        'id' =>
+                            $publication->id,
+
+                        'workspace_id' =>
+                            $publication->workspace_id,
+
+                        'instagram_account_id' =>
+                            $publication->instagram_account_id,
+
+                        'type' =>
+                            $publication->type,
+
+                        'caption' =>
+                            $publication->caption,
+
+                        'container_id' =>
+                            $publication->container_id,
+
+                        'media_id' =>
+                            $publication->media_id,
+
+                        'status' =>
+                            $publication->status,
+
+                        'error_message' =>
+                            $publication->error_message,
+
+                        'published_at' =>
+                            $publication->published_at?->toISOString(),
+                    ],
+                ],
+            ],
+            $httpStatus,
+        );
     }
 }

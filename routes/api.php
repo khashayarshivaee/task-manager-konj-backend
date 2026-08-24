@@ -415,6 +415,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/publications/{publication}/continue',
+            [
+                InstagramController::class,
+                'continuePublication',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

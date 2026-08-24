@@ -60,6 +60,22 @@ return [
             'report' => false,
         ],
 
+
+        'instagram_publishing' => [
+            'driver' => 'local',
+
+            'root' => storage_path(
+                'app/public/instagram-publishing'
+            ),
+
+            'url' => env('APP_URL')
+                . '/storage/instagram-publishing',
+
+            'visibility' => 'public',
+
+            'throw' => false,
+        ],
+
     ],
 
     /*
