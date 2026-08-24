@@ -399,6 +399,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram/media',
+            [
+                InstagramController::class,
+                'media',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

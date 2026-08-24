@@ -326,4 +326,58 @@ class InstagramController extends Controller
             ],
         ]);
     }
+
+    public function media(
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $media = app(
+            \App\Services\InstagramApiService::class
+        )->getRecentMedia(
+            $accessToken,
+            (string) $account->instagram_id,
+            12
+        );
+
+        return response()->json([
+            'data' => [
+                'media' => $media['data'],
+                'paging' => $media['paging'],
+            ],
+        ]);
+    }
 }

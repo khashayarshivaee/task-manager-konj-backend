@@ -137,4 +137,40 @@ class InstagramApiService
             'metrics' => $normalizedMetrics,
         ];
     }
+
+    public function getRecentMedia(
+        string $accessToken,
+        string $instagramId,
+        int $limit = 12
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$instagramId}/media",
+                [
+                    'fields' => implode(',', [
+                        'id',
+                        'caption',
+                        'media_type',
+                        'media_url',
+                        'permalink',
+                        'thumbnail_url',
+                        'timestamp',
+                        'username',
+                    ]),
+                    'limit' => $limit,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram media request failed: '
+                . $response->body()
+            );
+        }
+
+        return [
+            'data' => $response->json('data', []),
+            'paging' => $response->json('paging'),
+        ];
+    }
 }
