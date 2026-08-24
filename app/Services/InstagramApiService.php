@@ -64,14 +64,19 @@ class InstagramApiService
         string $accessToken,
         string $instagramId
     ): array {
+        $metrics = [
+            'reach',
+            'profile_views',
+            'views',
+            'accounts_engaged',
+            'total_interactions',
+        ];
+
         $response = Http::withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$instagramId}/insights",
                 [
-                    'metric' => implode(',', [
-                        'reach',
-                        'profile_views',
-                    ]),
+                    'metric' => implode(',', $metrics),
                     'period' => 'day',
                 ]
             );
@@ -83,6 +88,53 @@ class InstagramApiService
             );
         }
 
-        return $response->json();
+        $responseData = $response->json('data', []);
+
+        $metricsByName = [];
+
+        foreach ($responseData as $metricData) {
+            if (!isset($metricData['name'])) {
+                continue;
+            }
+
+            $metricsByName[$metricData['name']] =
+                $metricData;
+        }
+
+        $normalizedMetrics = [];
+
+        foreach ($metrics as $metric) {
+            $metricData =
+                $metricsByName[$metric] ?? null;
+
+            $history =
+                is_array($metricData['values'] ?? null)
+                    ? $metricData['values']
+                    : [];
+
+            $latest =
+                $history !== []
+                    ? $history[array_key_last($history)]
+                    : null;
+
+            $normalizedMetrics[$metric] = [
+                'value' =>
+                    is_array($latest)
+                    && array_key_exists('value', $latest)
+                        ? $latest['value']
+                        : null,
+
+                'has_data' =>
+                    $history !== [],
+
+                'history' =>
+                    $history,
+            ];
+        }
+
+        return [
+            'period' => 'day',
+            'metrics' => $normalizedMetrics,
+        ];
     }
 }

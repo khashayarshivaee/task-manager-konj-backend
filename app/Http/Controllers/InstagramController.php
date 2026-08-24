@@ -250,4 +250,80 @@ class InstagramController extends Controller
             ],
         ]);
     }
+
+    public function dashboard(
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json([
+                'data' => [
+                    'connected' => false,
+                    'account' => null,
+                    'profile' => null,
+                    'insights' => null,
+                ],
+            ]);
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $instagramApiService = app(
+            \App\Services\InstagramApiService::class
+        );
+
+        $profile = $instagramApiService->getProfile(
+            $accessToken
+        );
+
+        $insights =
+            $instagramApiService->getAccountInsights(
+                $accessToken,
+                (string) $account->instagram_id
+            );
+
+        return response()->json([
+            'data' => [
+                'connected' => true,
+
+                'account' => [
+                    'id' => $account->id,
+                    'workspace_id' =>
+                        $account->workspace_id,
+                    'instagram_id' =>
+                        $account->instagram_id,
+                    'username' =>
+                        $account->username,
+                    'is_active' =>
+                        $account->is_active,
+                ],
+
+                'profile' => $profile,
+
+                'insights' => $insights,
+            ],
+        ]);
+    }
 }
