@@ -59,4 +59,30 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function getAccountInsights(
+        string $accessToken,
+        string $instagramId
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$instagramId}/insights",
+                [
+                    'metric' => implode(',', [
+                        'reach',
+                        'profile_views',
+                    ]),
+                    'period' => 'day',
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram insights request failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }

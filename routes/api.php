@@ -383,6 +383,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram/insights',
+            [
+                InstagramController::class,
+                'insights',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------
