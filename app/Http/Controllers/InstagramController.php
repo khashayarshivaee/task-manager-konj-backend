@@ -654,4 +654,93 @@ class InstagramController extends Controller
             $httpStatus,
         );
     }
+
+    public function publishStoryVideo(
+        Request $request,
+        Workspace $workspace,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $request->validate([
+            'video' => [
+                'required',
+                'file',
+                'mimes:mp4,mov',
+                'max:102400',
+            ],
+        ]);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $video = $request->file('video');
+
+        if ($video === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram story video upload is required.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $publication = $publishingService->publishStoryVideo(
+            $workspace,
+            $account,
+            $video,
+        );
+
+        $httpStatus = $publication->status === 'published'
+            ? Response::HTTP_CREATED
+            : Response::HTTP_ACCEPTED;
+
+        return response()->json(
+            [
+                'message' =>
+                    $publication->status === 'published'
+                        ? 'Instagram story published successfully.'
+                        : 'Instagram story accepted for processing.',
+
+                'data' => [
+                    'publication' => [
+                        'id' => $publication->id,
+                        'workspace_id' =>
+                            $publication->workspace_id,
+                        'instagram_account_id' =>
+                            $publication->instagram_account_id,
+                        'type' =>
+                            $publication->type,
+                        'container_id' =>
+                            $publication->container_id,
+                        'media_id' =>
+                            $publication->media_id,
+                        'status' =>
+                            $publication->status,
+                        'error_message' =>
+                            $publication->error_message,
+                        'published_at' =>
+                            $publication->published_at?->toISOString(),
+                    ],
+                ],
+            ],
+            $httpStatus,
+        );
+    }
 }

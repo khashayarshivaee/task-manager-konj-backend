@@ -431,6 +431,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/media/story',
+            [
+                InstagramController::class,
+                'publishStoryVideo',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

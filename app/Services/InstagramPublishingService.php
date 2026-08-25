@@ -159,6 +159,73 @@ class InstagramPublishingService
         }
     }
 
+    public function publishStoryVideo(
+        Workspace $workspace,
+        InstagramAccount $account,
+        UploadedFile $video,
+    ): InstagramPublication {
+        $storedVideo = $this->storageService->storeVideo(
+            $video
+        );
+
+        $publication = InstagramPublication::query()->create([
+            'workspace_id' => $workspace->id,
+            'instagram_account_id' => $account->id,
+            'type' => 'story',
+            'caption' => null,
+            'staging_path' => $storedVideo['path'],
+            'status' => 'pending',
+        ]);
+
+        try {
+            $accessToken = $account->getAccessToken();
+
+            if (
+                !is_string($accessToken)
+                || trim($accessToken) === ''
+            ) {
+                throw new \RuntimeException(
+                    'Instagram access token is unavailable.'
+                );
+            }
+
+            $container = $this->instagramApiService
+                ->createStoryVideoContainer(
+                    $accessToken,
+                    (string) $account->instagram_id,
+                    $storedVideo['url'],
+                );
+
+            $containerId = $container['id'] ?? null;
+
+            if (
+                !is_string($containerId)
+                || trim($containerId) === ''
+            ) {
+                throw new \RuntimeException(
+                    'Instagram did not return a story container ID.'
+                );
+            }
+
+            $publication->container_id = $containerId;
+            $publication->status = 'processing';
+            $publication->save();
+
+            return $this->continuePublication(
+                $publication,
+                $account,
+            );
+        } catch (Throwable $exception) {
+            $publication->status = 'failed';
+            $publication->error_message =
+                $exception->getMessage();
+
+            $publication->save();
+
+            throw $exception;
+        }
+    }
+
     public function continuePublication(
         InstagramPublication $publication,
         InstagramAccount $account,

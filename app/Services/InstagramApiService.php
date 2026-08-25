@@ -351,4 +351,29 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function createStoryVideoContainer(
+        string $accessToken,
+        string $instagramId,
+        string $videoUrl,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                [
+                    'media_type' => 'STORIES',
+                    'video_url' => $videoUrl,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram story video container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }
