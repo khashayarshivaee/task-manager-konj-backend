@@ -613,7 +613,7 @@ class InstagramController extends Controller
             $account,
             $video,
             $validated['caption'] ?? null,
-            $validated['share_to_feed'] ?? true,
+            $request->boolean('share_to_feed', true),
         );
 
         $httpStatus = $publication->status === 'published'
