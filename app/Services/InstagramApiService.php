@@ -376,4 +376,29 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function createStoryImageContainer(
+        string $accessToken,
+        string $instagramId,
+        string $imageUrl,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                [
+                    'media_type' => 'STORIES',
+                    'image_url' => $imageUrl,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram story image container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }
