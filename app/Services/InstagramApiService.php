@@ -312,4 +312,43 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function createReelContainer(
+        string $accessToken,
+        string $instagramId,
+        string $videoUrl,
+        ?string $caption = null,
+        bool $shareToFeed = true,
+    ): array {
+        $payload = [
+            'media_type' => 'REELS',
+            'video_url' => $videoUrl,
+            'share_to_feed' => $shareToFeed
+                ? 'true'
+                : 'false',
+        ];
+
+        if (
+            is_string($caption)
+            && trim($caption) !== ''
+        ) {
+            $payload['caption'] = $caption;
+        }
+
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                $payload
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram reel container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }

@@ -552,4 +552,106 @@ class InstagramController extends Controller
             $httpStatus,
         );
     }
+
+    public function publishReel(
+        Request $request,
+        Workspace $workspace,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $validated = $request->validate([
+            'video' => [
+                'required',
+                'file',
+                'mimes:mp4,mov',
+                'max:102400',
+            ],
+            'caption' => [
+                'nullable',
+                'string',
+                'max:2200',
+            ],
+            'share_to_feed' => [
+                'nullable',
+                'boolean',
+            ],
+        ]);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $video = $request->file('video');
+
+        if ($video === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram reel video upload is required.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $publication = $publishingService->publishReel(
+            $workspace,
+            $account,
+            $video,
+            $validated['caption'] ?? null,
+            $validated['share_to_feed'] ?? true,
+        );
+
+        $httpStatus = $publication->status === 'published'
+            ? Response::HTTP_CREATED
+            : Response::HTTP_ACCEPTED;
+
+        return response()->json(
+            [
+                'message' =>
+                    $publication->status === 'published'
+                        ? 'Instagram reel published successfully.'
+                        : 'Instagram reel accepted for processing.',
+
+                'data' => [
+                    'publication' => [
+                        'id' => $publication->id,
+                        'workspace_id' =>
+                            $publication->workspace_id,
+                        'instagram_account_id' =>
+                            $publication->instagram_account_id,
+                        'type' =>
+                            $publication->type,
+                        'caption' =>
+                            $publication->caption,
+                        'container_id' =>
+                            $publication->container_id,
+                        'media_id' =>
+                            $publication->media_id,
+                        'status' =>
+                            $publication->status,
+                        'error_message' =>
+                            $publication->error_message,
+                        'published_at' =>
+                            $publication->published_at?->toISOString(),
+                    ],
+                ],
+            ],
+            $httpStatus,
+        );
+    }
 }

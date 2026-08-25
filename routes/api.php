@@ -423,6 +423,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/media/reel',
+            [
+                InstagramController::class,
+                'publishReel',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

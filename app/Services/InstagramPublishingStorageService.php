@@ -39,6 +39,44 @@ class InstagramPublishingStorageService
         ];
     }
 
+    /**
+     * @return array{path: string, url: string}
+     */
+    public function storeVideo(
+        UploadedFile $video
+    ): array {
+        $extension = strtolower(
+            $video->getClientOriginalExtension()
+        );
+
+        if (!in_array($extension, ['mp4', 'mov'], true)) {
+            throw new RuntimeException(
+                'Unsupported Instagram publishing video format.'
+            );
+        }
+
+        $filename = Str::uuid()->toString()
+            . '.'
+            . $extension;
+
+        $path = Storage::disk(self::DISK)->putFileAs(
+            '',
+            $video,
+            $filename
+        );
+
+        if (!is_string($path) || $path === '') {
+            throw new RuntimeException(
+                'Failed to store Instagram publishing video.'
+            );
+        }
+
+        return [
+            'path' => $path,
+            'url' => Storage::disk(self::DISK)->url($path),
+        ];
+    }
+
     public function delete(
         string $path
     ): void {
