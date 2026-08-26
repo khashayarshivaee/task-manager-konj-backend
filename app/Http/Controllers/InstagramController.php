@@ -832,4 +832,115 @@ class InstagramController extends Controller
             $httpStatus,
         );
     }
+
+    public function comments(
+        Workspace $workspace,
+        string $mediaId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $comments = $instagramApiService->getMediaComments(
+            $accessToken,
+            $mediaId,
+        );
+
+        return response()->json([
+            'data' => $comments,
+        ]);
+    }
+
+    public function replyToComment(
+        Request $request,
+        Workspace $workspace,
+        string $commentId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize(
+            'update',
+            $workspace
+        );
+
+        $validated = $request->validate([
+            'message' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $reply = $instagramApiService->replyToComment(
+            $accessToken,
+            $commentId,
+            $validated['message'],
+        );
+
+        return response()->json([
+            'message' => 'Instagram comment reply sent successfully.',
+            'data' => $reply,
+        ]);
+    }
 }

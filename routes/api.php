@@ -447,6 +447,22 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram/media/{mediaId}/comments',
+            [
+                InstagramController::class,
+                'comments',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/instagram/comments/{commentId}/reply',
+            [
+                InstagramController::class,
+                'replyToComment',
+            ],
+        );
+
 
         /*
         |--------------------------------------------------------------------------

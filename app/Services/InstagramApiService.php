@@ -401,4 +401,60 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function getMediaComments(
+        string $accessToken,
+        string $mediaId,
+        int $limit = 50,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$mediaId}/comments",
+                [
+                    'fields' => implode(',', [
+                        'id',
+                        'from',
+                        'text',
+                        'timestamp',
+                    ]),
+                    'limit' => $limit,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram comments request failed: '
+                . $response->body()
+            );
+        }
+
+        return [
+            'data' => $response->json('data', []),
+            'paging' => $response->json('paging'),
+        ];
+    }
+
+    public function replyToComment(
+        string $accessToken,
+        string $commentId,
+        string $message,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$commentId}/replies",
+                [
+                    'message' => $message,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram comment reply failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }
