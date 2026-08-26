@@ -332,6 +332,84 @@ class InstagramPublishingService
         return $publication;
     }
 
+    public function cancelScheduledPublication(
+        InstagramPublication $publication,
+    ): InstagramPublication {
+        $publication->refresh();
+
+        if ($publication->status === 'cancelled') {
+            return $publication;
+        }
+
+        if ($publication->status !== 'scheduled') {
+            throw new \RuntimeException(
+                'Only scheduled Instagram publications can be cancelled.'
+            );
+        }
+
+        $stagingPath = $publication->staging_path;
+
+        if (
+            is_string($stagingPath)
+            && trim($stagingPath) !== ''
+        ) {
+            $this->storageService->delete(
+                $stagingPath
+            );
+        }
+
+        $publication->status = 'cancelled';
+        $publication->staging_path = null;
+        $publication->error_message = null;
+        $publication->save();
+
+        return $publication;
+    }
+
+    public function reschedulePublication(
+        InstagramPublication $publication,
+        \DateTimeInterface $scheduledAt,
+    ): InstagramPublication {
+        $publication->refresh();
+
+        if ($publication->status !== 'scheduled') {
+            throw new \RuntimeException(
+                'Only scheduled Instagram publications can be rescheduled.'
+            );
+        }
+
+        $oldScheduledAt = $publication->scheduled_at;
+
+        $newScheduledAt = \Carbon\CarbonImmutable::instance(
+            $scheduledAt
+        )->utc();
+
+        $publication->scheduled_at = $newScheduledAt;
+        $publication->processing_started_at = null;
+        $publication->error_message = null;
+        $publication->save();
+
+        /*
+         * If the publication is moved to an earlier time,
+         * the old delayed job would wake up too late.
+         * Dispatch a new job for the earlier time.
+         *
+         * If it is moved later, the existing job will wake
+         * at the old time, see the new future scheduled_at,
+         * and release itself until the new time.
+         */
+        if (
+            $oldScheduledAt === null
+            || $newScheduledAt->lt($oldScheduledAt)
+        ) {
+            ProcessInstagramScheduledPublication::dispatch(
+                $publication->id,
+            )->delay($newScheduledAt);
+        }
+
+        return $publication->refresh();
+    }
+
     public function processScheduledPublication(
         InstagramPublication $publication,
     ): InstagramPublication {

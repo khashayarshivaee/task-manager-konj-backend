@@ -50,13 +50,31 @@ class ProcessInstagramScheduledPublication implements ShouldQueue
             [
                 'published',
                 'failed',
+                'cancelled',
             ],
             true,
         )) {
             return;
         }
+        if (
+            $publication->status === 'scheduled'
+            && $publication->scheduled_at !== null
+            && $publication->scheduled_at->isFuture()
+        ) {
+            $delay = max(
+                1,
+                now()->diffInSeconds(
+                    $publication->scheduled_at,
+                )
+            );
+
+            $this->release($delay);
+
+            return;
+        }
 
         $publication = $publishingService
+
             ->processScheduledPublication(
                 $publication,
             );

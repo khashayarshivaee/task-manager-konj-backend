@@ -1418,4 +1418,144 @@ class InstagramController extends Controller
             Response::HTTP_CREATED,
         );
     }
+
+    public function publications(
+        Request $request,
+        Workspace $workspace
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $validated = $request->validate([
+            'status' => [
+                'nullable',
+                'string',
+                'in:pending,scheduled,processing,published,failed,cancelled',
+            ],
+        ]);
+
+        $query = $workspace
+            ->instagramPublications()
+            ->latest('id');
+
+        if (isset($validated['status'])) {
+            $query->where(
+                'status',
+                $validated['status'],
+            );
+        }
+
+        $publications = $query
+            ->limit(50)
+            ->get()
+            ->map(static function (
+                \App\Models\InstagramPublication $publication
+            ): array {
+                return [
+                    'id' => $publication->id,
+                    'type' => $publication->type,
+                    'media_kind' => $publication->media_kind,
+                    'caption' => $publication->caption,
+                    'status' => $publication->status,
+                    'options' => $publication->options,
+                    'container_id' => $publication->container_id,
+                    'media_id' => $publication->media_id,
+                    'scheduled_at' =>
+                        $publication->scheduled_at?->toISOString(),
+                    'processing_started_at' =>
+                        $publication->processing_started_at?->toISOString(),
+                    'published_at' =>
+                        $publication->published_at?->toISOString(),
+                    'error_message' =>
+                        $publication->error_message,
+                    'created_at' =>
+                        $publication->created_at?->toISOString(),
+                ];
+            });
+
+        return response()->json([
+            'data' => [
+                'publications' => $publications,
+            ],
+        ]);
+    }
+
+    public function cancelPublication(
+        Workspace $workspace,
+        \App\Models\InstagramPublication $publication,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        if ($publication->workspace_id !== $workspace->id) {
+            abort(Response::HTTP_NOT_FOUND);
+        }
+
+        $publication = $publishingService
+            ->cancelScheduledPublication(
+                $publication,
+            );
+
+        return response()->json([
+            'message' =>
+                'Instagram scheduled publication cancelled successfully.',
+            'data' => [
+                'publication' => [
+                    'id' => $publication->id,
+                    'type' => $publication->type,
+                    'media_kind' => $publication->media_kind,
+                    'caption' => $publication->caption,
+                    'status' => $publication->status,
+                    'scheduled_at' =>
+                        $publication->scheduled_at?->toISOString(),
+                    'staging_path' =>
+                        $publication->staging_path,
+                ],
+            ],
+        ]);
+    }
+
+    public function reschedulePublication(
+        Request $request,
+        Workspace $workspace,
+        \App\Models\InstagramPublication $publication,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        if ($publication->workspace_id !== $workspace->id) {
+            abort(Response::HTTP_NOT_FOUND);
+        }
+
+        $validated = $request->validate([
+            'scheduled_at' => [
+                'required',
+                'date',
+                'after:now',
+            ],
+        ]);
+
+        $publication = $publishingService
+            ->reschedulePublication(
+                $publication,
+                CarbonImmutable::parse(
+                    $validated['scheduled_at']
+                )->utc(),
+            );
+
+        return response()->json([
+            'message' =>
+                'Instagram publication rescheduled successfully.',
+            'data' => [
+                'publication' => [
+                    'id' => $publication->id,
+                    'type' => $publication->type,
+                    'media_kind' => $publication->media_kind,
+                    'caption' => $publication->caption,
+                    'status' => $publication->status,
+                    'scheduled_at' =>
+                        $publication->scheduled_at?->toISOString(),
+                ],
+            ],
+        ]);
+    }
 }

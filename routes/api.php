@@ -527,6 +527,30 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram/publications',
+            [
+                InstagramController::class,
+                'publications',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/instagram/publications/{publication}',
+            [
+                InstagramController::class,
+                'cancelPublication',
+            ],
+        );
+
+        Route::patch(
+            '/{workspace}/instagram/publications/{publication}/reschedule',
+            [
+                InstagramController::class,
+                'reschedulePublication',
+            ],
+        );
+
 
 
 
