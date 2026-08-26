@@ -463,6 +463,32 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/comments/{commentId}/hide',
+            [
+                InstagramController::class,
+                'hideComment',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/instagram/comments/{commentId}/unhide',
+            [
+                InstagramController::class,
+                'unhideComment',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/instagram/comments/{commentId}',
+            [
+                InstagramController::class,
+                'deleteComment',
+            ],
+        );
+
+
+
 
         /*
         |--------------------------------------------------------------------------

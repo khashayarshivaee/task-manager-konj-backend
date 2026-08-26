@@ -457,4 +457,69 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function setCommentHidden(
+        string $accessToken,
+        string $commentId,
+        bool $hidden,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$commentId}",
+                [
+                    'hide' => $hidden ? 'true' : 'false',
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram comment visibility update failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function hideComment(
+        string $accessToken,
+        string $commentId,
+    ): array {
+        return $this->setCommentHidden(
+            $accessToken,
+            $commentId,
+            true,
+        );
+    }
+
+    public function unhideComment(
+        string $accessToken,
+        string $commentId,
+    ): array {
+        return $this->setCommentHidden(
+            $accessToken,
+            $commentId,
+            false,
+        );
+    }
+
+    public function deleteComment(
+        string $accessToken,
+        string $commentId,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->delete(
+                "{$this->baseUrl}/{$commentId}"
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram comment deletion failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }
