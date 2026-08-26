@@ -551,6 +551,11 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/instagram/media-proxy',
+            InstagramMediaProxyController::class,
+        );
+
 
 
 
