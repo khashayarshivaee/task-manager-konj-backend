@@ -943,4 +943,133 @@ class InstagramController extends Controller
             'data' => $reply,
         ]);
     }
+
+    public function hideComment(
+        Workspace $workspace,
+        string $commentId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $result = $instagramApiService->hideComment(
+            $accessToken,
+            $commentId,
+        );
+
+        return response()->json([
+            'message' => 'Instagram comment hidden successfully.',
+            'data' => $result,
+        ]);
+    }
+
+    public function unhideComment(
+        Workspace $workspace,
+        string $commentId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $result = $instagramApiService->unhideComment(
+            $accessToken,
+            $commentId,
+        );
+
+        return response()->json([
+            'message' => 'Instagram comment unhidden successfully.',
+            'data' => $result,
+        ]);
+    }
+
+    public function deleteComment(
+        Workspace $workspace,
+        string $commentId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $result = $instagramApiService->deleteComment(
+            $accessToken,
+            $commentId,
+        );
+
+        return response()->json([
+            'message' => 'Instagram comment deleted successfully.',
+            'data' => $result,
+        ]);
+    }
 }
