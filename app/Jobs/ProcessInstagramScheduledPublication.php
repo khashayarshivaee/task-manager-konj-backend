@@ -13,16 +13,22 @@ class ProcessInstagramScheduledPublication implements ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 3;
+    public int $tries = 20;
+
+    public int $timeout = 120;
 
     /**
-     * @var int[]
+     * @return int[]
      */
-    public array $backoff = [
-        30,
-        120,
-        300,
-    ];
+    public function backoff(): array
+    {
+        return [
+            30,
+            60,
+            120,
+            300,
+        ];
+    }
 
     public function __construct(
         public readonly int $publicationId,
@@ -50,8 +56,13 @@ class ProcessInstagramScheduledPublication implements ShouldQueue
             return;
         }
 
-        $publishingService->processScheduledPublication(
-            $publication,
-        );
+        $publication = $publishingService
+            ->processScheduledPublication(
+                $publication,
+            );
+
+        if ($publication->status === 'processing') {
+            $this->release(30);
+        }
     }
 }
