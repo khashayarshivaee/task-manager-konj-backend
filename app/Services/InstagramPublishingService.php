@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\ContinueInstagramPublication;
+use App\Jobs\ProcessInstagramScheduledPublication;
 use App\Models\InstagramAccount;
 use App\Models\InstagramPublication;
 use App\Models\Workspace;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Http\UploadedFile;
 use RuntimeException;
 use Throwable;
-use App\Jobs\ProcessInstagramScheduledPublication;
+
 class InstagramPublishingService
 {
     public function __construct(
@@ -26,7 +30,7 @@ class InstagramPublishingService
         ?string $caption = null,
     ): InstagramPublication {
         $storedImage = $this->storageService->storeImage(
-            $image
+            $image,
         );
 
         $publication = InstagramPublication::query()->create([
@@ -46,7 +50,7 @@ class InstagramPublishingService
                 || trim($accessToken) === ''
             ) {
                 throw new RuntimeException(
-                    'Instagram access token is unavailable.'
+                    'Instagram access token is unavailable.',
                 );
             }
 
@@ -65,7 +69,7 @@ class InstagramPublishingService
                 || trim($containerId) === ''
             ) {
                 throw new RuntimeException(
-                    'Instagram did not return a media container ID.'
+                    'Instagram did not return a media container ID.',
                 );
             }
 
@@ -73,10 +77,16 @@ class InstagramPublishingService
             $publication->status = 'processing';
             $publication->save();
 
-            return $this->continuePublication(
+            $publication = $this->continuePublication(
                 $publication,
                 $account,
             );
+
+            $this->dispatchContinuationIfNeeded(
+                $publication,
+            );
+
+            return $publication;
         } catch (Throwable $exception) {
             $publication->status = 'failed';
             $publication->error_message =
@@ -96,7 +106,7 @@ class InstagramPublishingService
         bool $shareToFeed = true,
     ): InstagramPublication {
         $storedVideo = $this->storageService->storeVideo(
-            $video
+            $video,
         );
 
         $publication = InstagramPublication::query()->create([
@@ -115,8 +125,8 @@ class InstagramPublishingService
                 !is_string($accessToken)
                 || trim($accessToken) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram access token is unavailable.'
+                throw new RuntimeException(
+                    'Instagram access token is unavailable.',
                 );
             }
 
@@ -135,8 +145,8 @@ class InstagramPublishingService
                 !is_string($containerId)
                 || trim($containerId) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram did not return a reel container ID.'
+                throw new RuntimeException(
+                    'Instagram did not return a reel container ID.',
                 );
             }
 
@@ -144,10 +154,16 @@ class InstagramPublishingService
             $publication->status = 'processing';
             $publication->save();
 
-            return $this->continuePublication(
+            $publication = $this->continuePublication(
                 $publication,
                 $account,
             );
+
+            $this->dispatchContinuationIfNeeded(
+                $publication,
+            );
+
+            return $publication;
         } catch (Throwable $exception) {
             $publication->status = 'failed';
             $publication->error_message =
@@ -165,7 +181,7 @@ class InstagramPublishingService
         UploadedFile $video,
     ): InstagramPublication {
         $storedVideo = $this->storageService->storeVideo(
-            $video
+            $video,
         );
 
         $publication = InstagramPublication::query()->create([
@@ -184,8 +200,8 @@ class InstagramPublishingService
                 !is_string($accessToken)
                 || trim($accessToken) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram access token is unavailable.'
+                throw new RuntimeException(
+                    'Instagram access token is unavailable.',
                 );
             }
 
@@ -202,8 +218,8 @@ class InstagramPublishingService
                 !is_string($containerId)
                 || trim($containerId) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram did not return a story container ID.'
+                throw new RuntimeException(
+                    'Instagram did not return a story container ID.',
                 );
             }
 
@@ -211,10 +227,16 @@ class InstagramPublishingService
             $publication->status = 'processing';
             $publication->save();
 
-            return $this->continuePublication(
+            $publication = $this->continuePublication(
                 $publication,
                 $account,
             );
+
+            $this->dispatchContinuationIfNeeded(
+                $publication,
+            );
+
+            return $publication;
         } catch (Throwable $exception) {
             $publication->status = 'failed';
             $publication->error_message =
@@ -232,7 +254,7 @@ class InstagramPublishingService
         UploadedFile $image,
     ): InstagramPublication {
         $storedImage = $this->storageService->storeImage(
-            $image
+            $image,
         );
 
         $publication = InstagramPublication::query()->create([
@@ -251,8 +273,8 @@ class InstagramPublishingService
                 !is_string($accessToken)
                 || trim($accessToken) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram access token is unavailable.'
+                throw new RuntimeException(
+                    'Instagram access token is unavailable.',
                 );
             }
 
@@ -269,8 +291,8 @@ class InstagramPublishingService
                 !is_string($containerId)
                 || trim($containerId) === ''
             ) {
-                throw new \RuntimeException(
-                    'Instagram did not return a story image container ID.'
+                throw new RuntimeException(
+                    'Instagram did not return a story image container ID.',
                 );
             }
 
@@ -278,10 +300,16 @@ class InstagramPublishingService
             $publication->status = 'processing';
             $publication->save();
 
-            return $this->continuePublication(
+            $publication = $this->continuePublication(
                 $publication,
                 $account,
             );
+
+            $this->dispatchContinuationIfNeeded(
+                $publication,
+            );
+
+            return $publication;
         } catch (Throwable $exception) {
             $publication->status = 'failed';
             $publication->error_message =
@@ -299,16 +327,21 @@ class InstagramPublishingService
         UploadedFile $file,
         string $type,
         string $mediaKind,
-        \DateTimeInterface $scheduledAt,
+        DateTimeInterface $scheduledAt,
         ?string $caption = null,
         array $options = [],
     ): InstagramPublication {
         $storedFile = match ($mediaKind) {
-            'image' => $this->storageService->storeImage($file),
-            'video' => $this->storageService->storeVideo($file),
+            'image' => $this->storageService->storeImage(
+                $file,
+            ),
 
-            default => throw new \RuntimeException(
-                'Unsupported Instagram scheduled media kind.'
+            'video' => $this->storageService->storeVideo(
+                $file,
+            ),
+
+            default => throw new RuntimeException(
+                'Unsupported Instagram scheduled media kind.',
             ),
         };
 
@@ -327,7 +360,9 @@ class InstagramPublishingService
 
         ProcessInstagramScheduledPublication::dispatch(
             $publication->id,
-        )->delay($scheduledAt);
+        )->delay(
+            $scheduledAt,
+        );
 
         return $publication;
     }
@@ -342,8 +377,8 @@ class InstagramPublishingService
         }
 
         if ($publication->status !== 'scheduled') {
-            throw new \RuntimeException(
-                'Only scheduled Instagram publications can be cancelled.'
+            throw new RuntimeException(
+                'Only scheduled Instagram publications can be cancelled.',
             );
         }
 
@@ -354,7 +389,7 @@ class InstagramPublishingService
             && trim($stagingPath) !== ''
         ) {
             $this->storageService->delete(
-                $stagingPath
+                $stagingPath,
             );
         }
 
@@ -368,43 +403,54 @@ class InstagramPublishingService
 
     public function reschedulePublication(
         InstagramPublication $publication,
-        \DateTimeInterface $scheduledAt,
+        DateTimeInterface $scheduledAt,
     ): InstagramPublication {
         $publication->refresh();
 
         if ($publication->status !== 'scheduled') {
-            throw new \RuntimeException(
-                'Only scheduled Instagram publications can be rescheduled.'
+            throw new RuntimeException(
+                'Only scheduled Instagram publications can be rescheduled.',
             );
         }
 
-        $oldScheduledAt = $publication->scheduled_at;
+        $oldScheduledAt =
+            $publication->scheduled_at;
 
-        $newScheduledAt = \Carbon\CarbonImmutable::instance(
-            $scheduledAt
-        )->utc();
+        $newScheduledAt =
+            CarbonImmutable::instance(
+                $scheduledAt,
+            )->utc();
 
-        $publication->scheduled_at = $newScheduledAt;
-        $publication->processing_started_at = null;
-        $publication->error_message = null;
+        $publication->scheduled_at =
+            $newScheduledAt;
+
+        $publication->processing_started_at =
+            null;
+
+        $publication->error_message =
+            null;
+
         $publication->save();
 
         /*
-         * If the publication is moved to an earlier time,
-         * the old delayed job would wake up too late.
-         * Dispatch a new job for the earlier time.
+         * When moved earlier, the existing delayed job
+         * would wake up too late, so dispatch a new job.
          *
-         * If it is moved later, the existing job will wake
-         * at the old time, see the new future scheduled_at,
-         * and release itself until the new time.
+         * When moved later, the existing job wakes up
+         * at its old time, sees the future scheduled_at,
+         * and releases itself until the new time.
          */
         if (
             $oldScheduledAt === null
-            || $newScheduledAt->lt($oldScheduledAt)
+            || $newScheduledAt->lt(
+                $oldScheduledAt,
+            )
         ) {
             ProcessInstagramScheduledPublication::dispatch(
                 $publication->id,
-            )->delay($newScheduledAt);
+            )->delay(
+                $newScheduledAt,
+            );
         }
 
         return $publication->refresh();
@@ -415,44 +461,53 @@ class InstagramPublishingService
     ): InstagramPublication {
         $publication->refresh();
 
-        if (in_array(
-            $publication->status,
-            [
-                'published',
-                'failed',
-            ],
-            true,
-        )) {
+        if (
+            in_array(
+                $publication->status,
+                [
+                    'published',
+                    'failed',
+                    'cancelled',
+                ],
+                true,
+            )
+        ) {
             return $publication;
         }
 
-        $account = $publication->instagramAccount;
+        $account =
+            $publication->instagramAccount;
 
-        if ($account === null || !$account->is_active) {
-            throw new \RuntimeException(
-                'Instagram account for scheduled publication is unavailable.'
+        if (
+            $account === null
+            || !$account->is_active
+        ) {
+            throw new RuntimeException(
+                'Instagram account for scheduled publication is unavailable.',
             );
         }
 
-        $accessToken = $account->getAccessToken();
+        $accessToken =
+            $account->getAccessToken();
 
         if (
             !is_string($accessToken)
             || trim($accessToken) === ''
         ) {
-            throw new \RuntimeException(
-                'Instagram access token is unavailable.'
+            throw new RuntimeException(
+                'Instagram access token is unavailable.',
             );
         }
 
         /*
-         * Important:
-         * If a previous Queue attempt already created the Meta container,
-         * never create another container.
+         * If an earlier Queue attempt already created
+         * the Meta container, never create another one.
          */
         if (
             is_string($publication->container_id)
-            && trim($publication->container_id) !== ''
+            && trim(
+                $publication->container_id,
+            ) !== ''
         ) {
             return $this->continuePublication(
                 $publication,
@@ -460,22 +515,25 @@ class InstagramPublishingService
             );
         }
 
-        $stagingPath = $publication->staging_path;
+        $stagingPath =
+            $publication->staging_path;
 
         if (
             !is_string($stagingPath)
             || trim($stagingPath) === ''
         ) {
-            throw new \RuntimeException(
-                'Scheduled Instagram publication has no staging file.'
+            throw new RuntimeException(
+                'Scheduled Instagram publication has no staging file.',
             );
         }
 
-        $mediaUrl = $this->storageService->url(
-            $stagingPath
-        );
+        $mediaUrl =
+            $this->storageService->url(
+                $stagingPath,
+            );
 
-        $instagramId = (string) $account->instagram_id;
+        $instagramId =
+            (string) $account->instagram_id;
 
         $container = match ($publication->type) {
             'image' => $this->instagramApiService
@@ -493,12 +551,15 @@ class InstagramPublishingService
                     $mediaUrl,
                     $publication->caption,
                     (bool) (
-                        $publication->options['share_to_feed']
+                        $publication
+                            ->options['share_to_feed']
                         ?? true
                     ),
                 ),
 
-            'story' => match ($publication->media_kind) {
+            'story' => match (
+            $publication->media_kind
+            ) {
                 'image' => $this->instagramApiService
                     ->createStoryImageContainer(
                         $accessToken,
@@ -513,31 +574,40 @@ class InstagramPublishingService
                         $mediaUrl,
                     ),
 
-                default => throw new \RuntimeException(
-                    'Unsupported scheduled Instagram story media kind.'
+                default => throw new RuntimeException(
+                    'Unsupported scheduled Instagram story media kind.',
                 ),
             },
 
-            default => throw new \RuntimeException(
-                'Unsupported scheduled Instagram publication type.'
+            default => throw new RuntimeException(
+                'Unsupported scheduled Instagram publication type.',
             ),
         };
 
-        $containerId = $container['id'] ?? null;
+        $containerId =
+            $container['id'] ?? null;
 
         if (
             !is_string($containerId)
             || trim($containerId) === ''
         ) {
-            throw new \RuntimeException(
-                'Instagram did not return a container ID.'
+            throw new RuntimeException(
+                'Instagram did not return a container ID.',
             );
         }
 
-        $publication->container_id = $containerId;
-        $publication->status = 'processing';
-        $publication->processing_started_at ??= now();
-        $publication->error_message = null;
+        $publication->container_id =
+            $containerId;
+
+        $publication->status =
+            'processing';
+
+        $publication->processing_started_at ??=
+            now();
+
+        $publication->error_message =
+            null;
+
         $publication->save();
 
         return $this->continuePublication(
@@ -550,70 +620,92 @@ class InstagramPublishingService
         InstagramPublication $publication,
         InstagramAccount $account,
     ): InstagramPublication {
-        if ($publication->status === 'published') {
+        if (
+            in_array(
+                $publication->status,
+                [
+                    'published',
+                    'failed',
+                    'cancelled',
+                ],
+                true,
+            )
+        ) {
             return $publication;
         }
 
-        if ($publication->status === 'failed') {
-            return $publication;
-        }
-
-        $accessToken = $account->getAccessToken();
+        $accessToken =
+            $account->getAccessToken();
 
         if (
             !is_string($accessToken)
             || trim($accessToken) === ''
         ) {
             throw new RuntimeException(
-                'Instagram access token is unavailable.'
+                'Instagram access token is unavailable.',
             );
         }
 
         if (
             !is_string($publication->container_id)
-            || trim($publication->container_id) === ''
+            || trim(
+                $publication->container_id,
+            ) === ''
         ) {
             throw new RuntimeException(
-                'Instagram publication has no container ID.'
+                'Instagram publication has no container ID.',
             );
         }
 
-        $containerStatus = $this->instagramApiService
-            ->getContainerStatus(
-                $accessToken,
-                $publication->container_id,
-            );
-
-        $statusCode =
-            $containerStatus['status_code'] ?? null;
-
-        if ($statusCode === 'FINISHED') {
-            $published = $this->instagramApiService
-                ->publishContainer(
+        $containerStatus =
+            $this->instagramApiService
+                ->getContainerStatus(
                     $accessToken,
-                    (string) $account->instagram_id,
                     $publication->container_id,
                 );
+
+        $statusCode =
+            $containerStatus['status_code']
+            ?? null;
+
+        if ($statusCode === 'FINISHED') {
+            $published =
+                $this->instagramApiService
+                    ->publishContainer(
+                        $accessToken,
+                        (string) $account->instagram_id,
+                        $publication->container_id,
+                    );
 
             $publication->media_id =
                 isset($published['id'])
                     ? (string) $published['id']
                     : null;
 
-            $publication->status = 'published';
-            $publication->error_message = null;
-            $publication->published_at = now();
+            $publication->status =
+                'published';
+
+            $publication->error_message =
+                null;
+
+            $publication->published_at =
+                now();
+
             $publication->save();
 
             if (
-                is_string($publication->staging_path)
+                is_string(
+                    $publication->staging_path,
+                )
                 && $publication->staging_path !== ''
             ) {
                 $this->storageService->delete(
-                    $publication->staging_path
+                    $publication->staging_path,
                 );
 
-                $publication->staging_path = null;
+                $publication->staging_path =
+                    null;
+
                 $publication->save();
             }
 
@@ -624,10 +716,14 @@ class InstagramPublishingService
             $statusCode === 'ERROR'
             || $statusCode === 'EXPIRED'
         ) {
-            $publication->status = 'failed';
+            $publication->status =
+                'failed';
 
             $publication->error_message =
-                is_string($containerStatus['status'] ?? null)
+                is_string(
+                    $containerStatus['status']
+                    ?? null,
+                )
                     ? $containerStatus['status']
                     : "Instagram container status: {$statusCode}";
 
@@ -636,9 +732,28 @@ class InstagramPublishingService
             return $publication;
         }
 
-        $publication->status = 'processing';
+        $publication->status =
+            'processing';
+
         $publication->save();
 
         return $publication;
+    }
+
+    private function dispatchContinuationIfNeeded(
+        InstagramPublication $publication,
+    ): void {
+        if (
+            $publication->status !==
+            'processing'
+        ) {
+            return;
+        }
+
+        ContinueInstagramPublication::dispatch(
+            $publication->id,
+        )->delay(
+            now()->addSeconds(30),
+        );
     }
 }
