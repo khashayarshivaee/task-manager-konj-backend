@@ -522,4 +522,107 @@ class InstagramApiService
 
         return $response->json();
     }
+
+    public function getConversations(
+        string $accessToken,
+        int $limit = 25,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/me/conversations",
+                [
+                    'limit' => $limit,
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram conversations request failed: '
+                . $response->body()
+            );
+        }
+
+        return [
+            'data' => $response->json('data', []),
+            'paging' => $response->json('paging'),
+        ];
+    }
+
+    public function getConversation(
+        string $accessToken,
+        string $conversationId,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$conversationId}",
+                [
+                    'fields' => 'id,messages{from,to}',
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram conversation request failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function getMessage(
+        string $accessToken,
+        string $messageId,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->get(
+                "{$this->baseUrl}/{$messageId}",
+                [
+                    'fields' => implode(',', [
+                        'id',
+                        'created_time',
+                        'from',
+                        'to',
+                        'message',
+                    ]),
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram message request failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function sendMessage(
+        string $accessToken,
+        string $recipientId,
+        string $message,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->post(
+                "{$this->baseUrl}/me/messages",
+                [
+                    'recipient' => [
+                        'id' => $recipientId,
+                    ],
+                    'message' => [
+                        'text' => $message,
+                    ],
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram message sending failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
 }

@@ -1072,4 +1072,185 @@ class InstagramController extends Controller
             'data' => $result,
         ]);
     }
+
+    public function conversations(
+        Workspace $workspace,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $conversations = $instagramApiService->getConversations(
+            $accessToken,
+        );
+
+        return response()->json([
+            'data' => $conversations,
+        ]);
+    }
+
+    public function conversation(
+        Workspace $workspace,
+        string $conversationId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $conversation = $instagramApiService->getConversation(
+            $accessToken,
+            $conversationId,
+        );
+
+        return response()->json([
+            'data' => $conversation,
+        ]);
+    }
+
+    public function message(
+        Workspace $workspace,
+        string $messageId,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $message = $instagramApiService->getMessage(
+            $accessToken,
+            $messageId,
+        );
+
+        return response()->json([
+            'data' => $message,
+        ]);
+    }
+
+    public function sendMessage(
+        Request $request,
+        Workspace $workspace,
+        \App\Services\InstagramApiService $instagramApiService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $validated = $request->validate([
+            'recipient_id' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'message' => [
+                'required',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' => 'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (!is_string($accessToken) || trim($accessToken) === '') {
+            return response()->json(
+                [
+                    'message' => 'Instagram access token is unavailable.',
+                ],
+                Response::HTTP_SERVICE_UNAVAILABLE,
+            );
+        }
+
+        $result = $instagramApiService->sendMessage(
+            $accessToken,
+            $validated['recipient_id'],
+            $validated['message'],
+        );
+
+        return response()->json([
+            'message' => 'Instagram message sent successfully.',
+            'data' => $result,
+        ]);
+    }
 }

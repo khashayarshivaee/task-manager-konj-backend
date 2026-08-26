@@ -487,6 +487,38 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::get(
+            '/{workspace}/instagram/conversations',
+            [
+                InstagramController::class,
+                'conversations',
+            ],
+        );
+
+        Route::get(
+            '/{workspace}/instagram/conversations/{conversationId}',
+            [
+                InstagramController::class,
+                'conversation',
+            ],
+        );
+
+        Route::get(
+            '/{workspace}/instagram/messages/{messageId}',
+            [
+                InstagramController::class,
+                'message',
+            ],
+        );
+
+        Route::post(
+            '/{workspace}/instagram/messages',
+            [
+                InstagramController::class,
+                'sendMessage',
+            ],
+        );
+
 
 
 
