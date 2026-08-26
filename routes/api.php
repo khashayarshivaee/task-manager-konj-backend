@@ -128,6 +128,22 @@ Route::prefix('auth')->group(function (): void {
       });
 });
 
+/*
+|--------------------------------------------------------------------------
+| Instagram Media Proxy
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/instagram/media-proxy',
+    InstagramMediaProxyController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ]);
+
 
 /*
 |--------------------------------------------------------------------------
@@ -551,10 +567,7 @@ Route::prefix('workspaces')
             ],
         );
 
-        Route::get(
-            '/instagram/media-proxy',
-            InstagramMediaProxyController::class,
-        );
+
 
 
 
