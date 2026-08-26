@@ -1393,7 +1393,7 @@ class InstagramController extends Controller
             $mediaKind,
             CarbonImmutable::parse(
                 $validated['scheduled_at']
-            ),
+            )->utc(),
             $validated['caption'] ?? null,
             $options,
         );
