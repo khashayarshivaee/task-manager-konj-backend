@@ -10,7 +10,7 @@ use App\Models\Workspace;
 use Illuminate\Http\UploadedFile;
 use RuntimeException;
 use Throwable;
-
+use App\Jobs\ProcessInstagramScheduledPublication;
 class InstagramPublishingService
 {
     public function __construct(
@@ -291,6 +291,181 @@ class InstagramPublishingService
 
             throw $exception;
         }
+    }
+
+    public function schedulePublication(
+        Workspace $workspace,
+        InstagramAccount $account,
+        UploadedFile $file,
+        string $type,
+        string $mediaKind,
+        \DateTimeInterface $scheduledAt,
+        ?string $caption = null,
+        array $options = [],
+    ): InstagramPublication {
+        $storedFile = match ($mediaKind) {
+            'image' => $this->storageService->storeImage($file),
+            'video' => $this->storageService->storeVideo($file),
+
+            default => throw new \RuntimeException(
+                'Unsupported Instagram scheduled media kind.'
+            ),
+        };
+
+        $publication = InstagramPublication::query()->create([
+            'workspace_id' => $workspace->id,
+            'instagram_account_id' => $account->id,
+            'type' => $type,
+            'media_kind' => $mediaKind,
+            'caption' => $caption,
+            'options' => $options,
+            'staging_path' => $storedFile['path'],
+            'status' => 'scheduled',
+            'scheduled_at' => $scheduledAt,
+            'processing_started_at' => null,
+        ]);
+
+        ProcessInstagramScheduledPublication::dispatch(
+            $publication->id,
+        )->delay($scheduledAt);
+
+        return $publication;
+    }
+
+    public function processScheduledPublication(
+        InstagramPublication $publication,
+    ): InstagramPublication {
+        $publication->refresh();
+
+        if (in_array(
+            $publication->status,
+            [
+                'published',
+                'failed',
+            ],
+            true,
+        )) {
+            return $publication;
+        }
+
+        $account = $publication->instagramAccount;
+
+        if ($account === null || !$account->is_active) {
+            throw new \RuntimeException(
+                'Instagram account for scheduled publication is unavailable.'
+            );
+        }
+
+        $accessToken = $account->getAccessToken();
+
+        if (
+            !is_string($accessToken)
+            || trim($accessToken) === ''
+        ) {
+            throw new \RuntimeException(
+                'Instagram access token is unavailable.'
+            );
+        }
+
+        /*
+         * Important:
+         * If a previous Queue attempt already created the Meta container,
+         * never create another container.
+         */
+        if (
+            is_string($publication->container_id)
+            && trim($publication->container_id) !== ''
+        ) {
+            return $this->continuePublication(
+                $publication,
+                $account,
+            );
+        }
+
+        $stagingPath = $publication->staging_path;
+
+        if (
+            !is_string($stagingPath)
+            || trim($stagingPath) === ''
+        ) {
+            throw new \RuntimeException(
+                'Scheduled Instagram publication has no staging file.'
+            );
+        }
+
+        $mediaUrl = $this->storageService->url(
+            $stagingPath
+        );
+
+        $instagramId = (string) $account->instagram_id;
+
+        $container = match ($publication->type) {
+            'image' => $this->instagramApiService
+                ->createImageContainer(
+                    $accessToken,
+                    $instagramId,
+                    $mediaUrl,
+                    $publication->caption,
+                ),
+
+            'reel' => $this->instagramApiService
+                ->createReelContainer(
+                    $accessToken,
+                    $instagramId,
+                    $mediaUrl,
+                    $publication->caption,
+                    (bool) (
+                        $publication->options['share_to_feed']
+                        ?? true
+                    ),
+                ),
+
+            'story' => match ($publication->media_kind) {
+                'image' => $this->instagramApiService
+                    ->createStoryImageContainer(
+                        $accessToken,
+                        $instagramId,
+                        $mediaUrl,
+                    ),
+
+                'video' => $this->instagramApiService
+                    ->createStoryVideoContainer(
+                        $accessToken,
+                        $instagramId,
+                        $mediaUrl,
+                    ),
+
+                default => throw new \RuntimeException(
+                    'Unsupported scheduled Instagram story media kind.'
+                ),
+            },
+
+            default => throw new \RuntimeException(
+                'Unsupported scheduled Instagram publication type.'
+            ),
+        };
+
+        $containerId = $container['id'] ?? null;
+
+        if (
+            !is_string($containerId)
+            || trim($containerId) === ''
+        ) {
+            throw new \RuntimeException(
+                'Instagram did not return a container ID.'
+            );
+        }
+
+        $publication->container_id = $containerId;
+        $publication->status = 'processing';
+        $publication->processing_started_at ??= now();
+        $publication->error_message = null;
+        $publication->save();
+
+        return $this->continuePublication(
+            $publication,
+            $account,
+        );
     }
 
     public function continuePublication(

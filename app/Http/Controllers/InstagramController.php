@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
 use App\Models\InstagramPublication;
+use Carbon\CarbonImmutable;
 class InstagramController extends Controller
 {
     public function __construct(
@@ -1252,5 +1253,169 @@ class InstagramController extends Controller
             'message' => 'Instagram message sent successfully.',
             'data' => $result,
         ]);
+    }
+
+    public function schedulePublication(
+        Request $request,
+        Workspace $workspace,
+        \App\Services\InstagramPublishingService $publishingService
+    ): JsonResponse {
+        Gate::authorize('update', $workspace);
+
+        $validated = $request->validate([
+            'type' => [
+                'required',
+                'string',
+                'in:image,reel,story',
+            ],
+            'media_kind' => [
+                'required',
+                'string',
+                'in:image,video',
+            ],
+            'file' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg,mp4,mov',
+                'max:102400',
+            ],
+            'caption' => [
+                'nullable',
+                'string',
+                'max:2200',
+            ],
+            'scheduled_at' => [
+                'required',
+                'date',
+                'after:now',
+            ],
+            'share_to_feed' => [
+                'nullable',
+                'boolean',
+            ],
+        ]);
+
+        $type = $validated['type'];
+        $mediaKind = $validated['media_kind'];
+
+        $validCombination = match ($type) {
+            'image' => $mediaKind === 'image',
+            'reel' => $mediaKind === 'video',
+            'story' => in_array(
+                $mediaKind,
+                ['image', 'video'],
+                true,
+            ),
+            default => false,
+        };
+
+        if (!$validCombination) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Invalid Instagram publication type and media kind combination.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $file = $request->file('file');
+
+        if ($file === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Instagram publication file is required.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $extension = strtolower(
+            $file->getClientOriginalExtension()
+        );
+
+        if (
+            $mediaKind === 'image'
+            && !in_array($extension, ['jpg', 'jpeg'], true)
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Scheduled Instagram images must be JPG or JPEG.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        if (
+            $mediaKind === 'video'
+            && !in_array($extension, ['mp4', 'mov'], true)
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Scheduled Instagram videos must be MP4 or MOV.',
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        $account = $workspace
+            ->instagramAccounts()
+            ->where('is_active', true)
+            ->first();
+
+        if ($account === null) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No active Instagram account is connected.',
+                ],
+                Response::HTTP_NOT_FOUND,
+            );
+        }
+
+        $options = [];
+
+        if ($type === 'reel') {
+            $options['share_to_feed'] = $request->boolean(
+                'share_to_feed',
+                true,
+            );
+        }
+
+        $publication = $publishingService->schedulePublication(
+            $workspace,
+            $account,
+            $file,
+            $type,
+            $mediaKind,
+            CarbonImmutable::parse(
+                $validated['scheduled_at']
+            ),
+            $validated['caption'] ?? null,
+            $options,
+        );
+
+        return response()->json(
+            [
+                'message' =>
+                    'Instagram publication scheduled successfully.',
+                'data' => [
+                    'publication' => [
+                        'id' => $publication->id,
+                        'type' => $publication->type,
+                        'media_kind' => $publication->media_kind,
+                        'caption' => $publication->caption,
+                        'status' => $publication->status,
+                        'scheduled_at' =>
+                            $publication->scheduled_at?->toISOString(),
+                        'options' => $publication->options,
+                    ],
+                ],
+            ],
+            Response::HTTP_CREATED,
+        );
     }
 }

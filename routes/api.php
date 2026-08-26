@@ -519,6 +519,14 @@ Route::prefix('workspaces')
             ],
         );
 
+        Route::post(
+            '/{workspace}/instagram/publications/schedule',
+            [
+                InstagramController::class,
+                'schedulePublication',
+            ],
+        );
+
 
 
 

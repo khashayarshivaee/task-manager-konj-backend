@@ -77,6 +77,18 @@ class InstagramPublishingStorageService
         ];
     }
 
+    public function url(
+        string $path
+    ): string {
+        if (trim($path) === '') {
+            throw new RuntimeException(
+                'Instagram publishing staging path is unavailable.'
+            );
+        }
+
+        return Storage::disk(self::DISK)->url($path);
+    }
+
     public function delete(
         string $path
     ): void {
