@@ -556,7 +556,7 @@ class InstagramApiService
             ->get(
                 "{$this->baseUrl}/{$conversationId}",
                 [
-                    'fields' => 'id,messages{from,to}',
+                    'fields' => 'id,messages{from,to,message,created_time}',
                 ]
             );
 
