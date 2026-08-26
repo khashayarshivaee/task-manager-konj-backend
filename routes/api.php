@@ -33,7 +33,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\VpnSessionController;
 use App\Http\Middleware\EnsureCanAccessVpnSessions;
-
+use App\Http\Controllers\InstagramMediaProxyController;
 /*
 |--------------------------------------------------------------------------
 | Authentication
