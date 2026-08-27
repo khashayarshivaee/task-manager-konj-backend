@@ -13,8 +13,16 @@ return new class extends Migration
             function (Blueprint $table) {
                 $table->id();
 
-                $table->foreignId('instagram_publication_id')
-                    ->constrained('instagram_publications')
+                $table->foreignId(
+                    'instagram_publication_id'
+                );
+
+                $table->foreign(
+                    'instagram_publication_id',
+                    'ig_pub_media_publication_fk'
+                )
+                    ->references('id')
+                    ->on('instagram_publications')
                     ->cascadeOnDelete();
 
                 $table->string('media_kind', 32)
@@ -36,10 +44,13 @@ return new class extends Migration
 
                 $table->timestamps();
 
-                $table->unique([
-                    'instagram_publication_id',
-                    'position',
-                ]);
+                $table->unique(
+                    [
+                        'instagram_publication_id',
+                        'position',
+                    ],
+                    'ig_pub_media_position_unique'
+                );
             }
         );
     }
