@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InstagramPublication extends Model
 {
@@ -43,5 +44,13 @@ class InstagramPublication extends Model
         return $this->belongsTo(
             InstagramAccount::class
         );
+    }
+
+    public function mediaItems(): HasMany
+    {
+        return $this->hasMany(
+            InstagramPublicationMediaItem::class,
+            'instagram_publication_id',
+        )->orderBy('position');
     }
 }

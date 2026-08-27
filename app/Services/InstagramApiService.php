@@ -208,6 +208,84 @@ class InstagramApiService
         return $response->json();
     }
 
+    public function createCarouselImageItemContainer(
+        string $accessToken,
+        string $instagramId,
+        string $imageUrl,
+    ): array {
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                [
+                    'image_url' => $imageUrl,
+                    'is_carousel_item' => 'true',
+                ]
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram carousel image item container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function createCarouselContainer(
+        string $accessToken,
+        string $instagramId,
+        array $children,
+        ?string $caption = null,
+    ): array {
+        $children = array_values(
+            array_filter(
+                $children,
+                static fn (mixed $child): bool =>
+                    is_string($child)
+                    && trim($child) !== ''
+            )
+        );
+
+        if (
+            count($children) < 2
+            || count($children) > 10
+        ) {
+            throw new RuntimeException(
+                'Instagram carousel requires between 2 and 10 media items.'
+            );
+        }
+
+        $payload = [
+            'media_type' => 'CAROUSEL',
+            'children' => implode(',', $children),
+        ];
+
+        if (
+            is_string($caption)
+            && trim($caption) !== ''
+        ) {
+            $payload['caption'] = $caption;
+        }
+
+        $response = Http::withToken($accessToken)
+            ->asForm()
+            ->post(
+                "{$this->baseUrl}/{$instagramId}/media",
+                $payload
+            );
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                'Instagram carousel container creation failed: '
+                . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
     public function publishContainer(
         string $accessToken,
         string $instagramId,

@@ -395,6 +395,22 @@ class InstagramController extends Controller
 
         $validated = $request->validate([
             'image' => [
+                'nullable',
+                'required_without:images',
+                'prohibited_with:images',
+                'file',
+                'mimes:jpg,jpeg',
+                'max:8192',
+            ],
+            'images' => [
+                'nullable',
+                'required_without:image',
+                'prohibited_with:image',
+                'array',
+                'min:1',
+                'max:10',
+            ],
+            'images.*' => [
                 'required',
                 'file',
                 'mimes:jpg,jpeg',
@@ -422,9 +438,34 @@ class InstagramController extends Controller
             );
         }
 
-        $image = $request->file('image');
+        /*
+         * Backward compatibility:
+         *
+         * Existing clients can continue sending:
+         * image=<file>
+         *
+         * New clients can send:
+         * images[]=<file>
+         * images[]=<file>
+         */
+        $images = $request->file(
+            'images',
+            []
+        );
 
-        if ($image === null) {
+        if (!is_array($images)) {
+            $images = [];
+        }
+
+        $singleImage = $request->file('image');
+
+        if ($singleImage !== null) {
+            $images = [
+                $singleImage,
+            ];
+        }
+
+        if ($images === []) {
             return response()->json(
                 [
                     'message' =>
@@ -434,43 +475,90 @@ class InstagramController extends Controller
             );
         }
 
-        $publication = $publishingService->publishImage(
-            $workspace,
-            $account,
-            $image,
-            $validated['caption'] ?? null,
-        );
+        $isCarousel =
+            count($images) > 1;
 
-        $httpStatus = $publication->status === 'published'
-            ? Response::HTTP_CREATED
-            : Response::HTTP_ACCEPTED;
+        if ($isCarousel) {
+            $publication =
+                $publishingService->publishCarousel(
+                    $workspace,
+                    $account,
+                    $images,
+                    $validated['caption'] ?? null,
+                );
+        } else {
+            $publication =
+                $publishingService->publishImage(
+                    $workspace,
+                    $account,
+                    $images[0],
+                    $validated['caption'] ?? null,
+                );
+        }
+
+        $httpStatus =
+            $publication->status === 'published'
+                ? Response::HTTP_CREATED
+                : Response::HTTP_ACCEPTED;
+
+        $publishedMessage = $isCarousel
+            ? 'Instagram carousel published successfully.'
+            : 'Instagram image published successfully.';
+
+        $processingMessage = $isCarousel
+            ? 'Instagram carousel accepted for processing.'
+            : 'Instagram image accepted for processing.';
 
         return response()->json(
             [
                 'message' =>
                     $publication->status === 'published'
-                        ? 'Instagram image published successfully.'
-                        : 'Instagram image accepted for processing.',
+                        ? $publishedMessage
+                        : $processingMessage,
 
                 'data' => [
                     'publication' => [
-                        'id' => $publication->id,
+                        'id' =>
+                            $publication->id,
+
                         'workspace_id' =>
                             $publication->workspace_id,
+
                         'instagram_account_id' =>
                             $publication->instagram_account_id,
+
                         'type' =>
                             $publication->type,
+
+                        'media_kind' =>
+                            $publication->media_kind,
+
                         'caption' =>
                             $publication->caption,
+
                         'container_id' =>
                             $publication->container_id,
+
                         'media_id' =>
                             $publication->media_id,
+
                         'status' =>
                             $publication->status,
+
+                        'error_message' =>
+                            $publication->error_message,
+
                         'published_at' =>
-                            $publication->published_at?->toISOString(),
+                            $publication
+                                ->published_at
+                                ?->toISOString(),
+
+                        'items_count' =>
+                            $isCarousel
+                                ? $publication
+                                ->mediaItems
+                                ->count()
+                                : 1,
                     ],
                 ],
             ],
@@ -1274,10 +1362,27 @@ class InstagramController extends Controller
                 'in:image,video',
             ],
             'file' => [
-                'required',
+                'nullable',
+                'required_without:files',
+                'prohibited_with:files',
                 'file',
                 'mimes:jpg,jpeg,mp4,mov',
                 'max:102400',
+            ],
+            'files' => [
+                'nullable',
+                'required_without:file',
+                'prohibited_with:file',
+                'prohibited_unless:type,image',
+                'array',
+                'min:1',
+                'max:10',
+            ],
+            'files.*' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg',
+                'max:8192',
             ],
             'caption' => [
                 'nullable',
@@ -1319,9 +1424,28 @@ class InstagramController extends Controller
             );
         }
 
-        $file = $request->file('file');
+        $files = $request->file(
+            'files',
+            [],
+        );
 
-        if ($file === null) {
+        if (!is_array($files)) {
+            $files = [];
+        }
+
+        $singleFile = $request->file('file');
+
+        /*
+         * Existing clients still send "file".
+         * New multi-image clients can send "files[]".
+         */
+        if ($singleFile !== null) {
+            $files = [
+                $singleFile,
+            ];
+        }
+
+        if ($files === []) {
             return response()->json(
                 [
                     'message' =>
@@ -1331,34 +1455,61 @@ class InstagramController extends Controller
             );
         }
 
-        $extension = strtolower(
-            $file->getClientOriginalExtension()
-        );
-
+        /*
+         * Reel and Story continue to support exactly
+         * one staging file.
+         */
         if (
-            $mediaKind === 'image'
-            && !in_array($extension, ['jpg', 'jpeg'], true)
+            $type !== 'image'
+            && count($files) !== 1
         ) {
             return response()->json(
                 [
                     'message' =>
-                        'Scheduled Instagram images must be JPG or JPEG.',
+                        'Instagram reels and stories require exactly one media file.',
                 ],
                 Response::HTTP_UNPROCESSABLE_ENTITY,
             );
         }
 
-        if (
-            $mediaKind === 'video'
-            && !in_array($extension, ['mp4', 'mov'], true)
-        ) {
-            return response()->json(
-                [
-                    'message' =>
-                        'Scheduled Instagram videos must be MP4 or MOV.',
-                ],
-                Response::HTTP_UNPROCESSABLE_ENTITY,
+        foreach ($files as $file) {
+            $extension = strtolower(
+                $file->getClientOriginalExtension()
             );
+
+            if (
+                $mediaKind === 'image'
+                && !in_array(
+                    $extension,
+                    ['jpg', 'jpeg'],
+                    true,
+                )
+            ) {
+                return response()->json(
+                    [
+                        'message' =>
+                            'Scheduled Instagram images must be JPG or JPEG.',
+                    ],
+                    Response::HTTP_UNPROCESSABLE_ENTITY,
+                );
+            }
+
+            if (
+                $mediaKind === 'video'
+                && !in_array(
+                    $extension,
+                    ['mp4', 'mov'],
+                    true,
+                )
+            ) {
+                return response()->json(
+                    [
+                        'message' =>
+                            'Scheduled Instagram videos must be MP4 or MOV.',
+                    ],
+                    Response::HTTP_UNPROCESSABLE_ENTITY,
+                );
+            }
         }
 
         $account = $workspace
@@ -1379,39 +1530,92 @@ class InstagramController extends Controller
         $options = [];
 
         if ($type === 'reel') {
-            $options['share_to_feed'] = $request->boolean(
-                'share_to_feed',
-                true,
-            );
+            $options['share_to_feed'] =
+                $request->boolean(
+                    'share_to_feed',
+                    true,
+                );
         }
 
-        $publication = $publishingService->schedulePublication(
-            $workspace,
-            $account,
-            $file,
-            $type,
-            $mediaKind,
+        $scheduledAt =
             CarbonImmutable::parse(
-                $validated['scheduled_at']
-            )->utc(),
-            $validated['caption'] ?? null,
-            $options,
-        );
+                $validated['scheduled_at'],
+            )->utc();
+
+        /*
+         * Image scheduling:
+         *
+         * 1 image  -> normal scheduled Image Post
+         * 2-10     -> scheduled Carousel Post
+         */
+        $isCarousel =
+            $type === 'image'
+            && count($files) > 1;
+
+        if ($isCarousel) {
+            $publication =
+                $publishingService
+                    ->scheduleCarouselPublication(
+                        $workspace,
+                        $account,
+                        $files,
+                        $scheduledAt,
+                        $validated['caption'] ?? null,
+                        $options,
+                    );
+        } else {
+            $publication =
+                $publishingService
+                    ->schedulePublication(
+                        $workspace,
+                        $account,
+                        $files[0],
+                        $type,
+                        $mediaKind,
+                        $scheduledAt,
+                        $validated['caption'] ?? null,
+                        $options,
+                    );
+        }
 
         return response()->json(
             [
                 'message' =>
-                    'Instagram publication scheduled successfully.',
+                    $isCarousel
+                        ? 'Instagram carousel scheduled successfully.'
+                        : 'Instagram publication scheduled successfully.',
+
                 'data' => [
                     'publication' => [
-                        'id' => $publication->id,
-                        'type' => $publication->type,
-                        'media_kind' => $publication->media_kind,
-                        'caption' => $publication->caption,
-                        'status' => $publication->status,
+                        'id' =>
+                            $publication->id,
+
+                        'type' =>
+                            $publication->type,
+
+                        'media_kind' =>
+                            $publication->media_kind,
+
+                        'caption' =>
+                            $publication->caption,
+
+                        'status' =>
+                            $publication->status,
+
                         'scheduled_at' =>
-                            $publication->scheduled_at?->toISOString(),
-                        'options' => $publication->options,
+                            $publication
+                                ->scheduled_at
+                                ?->toISOString(),
+
+                        'options' =>
+                            $publication->options,
+
+                        'items_count' =>
+                            $isCarousel
+                                ? $publication
+                                ->mediaItems
+                                ->count()
+                                : 1,
                     ],
                 ],
             ],
@@ -1445,6 +1649,7 @@ class InstagramController extends Controller
         }
 
         $publications = $query
+            ->with('mediaItems')
             ->limit(50)
             ->get()
             ->map(static function (
@@ -1469,6 +1674,41 @@ class InstagramController extends Controller
                         $publication->error_message,
                     'created_at' =>
                         $publication->created_at?->toISOString(),
+
+                    'items_count' =>
+                        $publication->type === 'carousel'
+                            ? $publication->mediaItems->count()
+                            : 1,
+
+                    'media_items' =>
+                        $publication->type === 'carousel'
+                            ? $publication->mediaItems
+                            ->map(static function (
+                                \App\Models\InstagramPublicationMediaItem $item
+                            ): array {
+                                return [
+                                    'id' =>
+                                        $item->id,
+
+                                    'media_kind' =>
+                                        $item->media_kind,
+
+                                    'position' =>
+                                        $item->position,
+
+                                    'container_id' =>
+                                        $item->container_id,
+
+                                    'container_status' =>
+                                        $item->container_status,
+
+                                    'error_message' =>
+                                        $item->error_message,
+                                ];
+                            })
+                            ->values()
+                            ->all()
+                            : [],
                 ];
             });
 
