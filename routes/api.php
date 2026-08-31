@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Http\Controllers\InstagramAccessController;
 use App\Http\Controllers\Api\VpnUserDestinationController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
@@ -364,6 +365,36 @@ Route::prefix('workspaces')
             [
                 WorkspaceMemberController::class,
                 'destroy',
+            ],
+        );
+
+        /*
+|--------------------------------------------------------------------------
+| Instagram Access
+|--------------------------------------------------------------------------
+*/
+
+        Route::get(
+            '/{workspace}/instagram/access',
+            [
+                InstagramAccessController::class,
+                'index',
+            ],
+        );
+
+        Route::put(
+            '/{workspace}/instagram/access/{user}',
+            [
+                InstagramAccessController::class,
+                'grant',
+            ],
+        );
+
+        Route::delete(
+            '/{workspace}/instagram/access/{user}',
+            [
+                InstagramAccessController::class,
+                'revoke',
             ],
         );
 

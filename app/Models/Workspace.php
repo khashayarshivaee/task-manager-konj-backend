@@ -85,4 +85,11 @@ class Workspace extends Model
             InstagramPublication::class
         );
     }
+
+    public function instagramAccessGrants(): HasMany
+    {
+        return $this->hasMany(
+            InstagramAccessGrant::class
+        );
+    }
 }

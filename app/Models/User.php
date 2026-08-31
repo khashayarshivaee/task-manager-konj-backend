@@ -197,6 +197,28 @@ class User extends Authenticatable implements MustVerifyEmail
      );
  }
 
+    /**
+     * Get Instagram access grants assigned to this user.
+     */
+    public function instagramAccessGrants(): HasMany
+    {
+        return $this->hasMany(
+            InstagramAccessGrant::class,
+            'user_id'
+        );
+    }
+
+    /**
+     * Get Instagram access grants created by this admin.
+     */
+    public function grantedInstagramAccess(): HasMany
+    {
+        return $this->hasMany(
+            InstagramAccessGrant::class,
+            'granted_by_user_id'
+        );
+    }
+
     protected function casts(): array
     {
         return [

@@ -60,24 +60,45 @@ class WorkspacePolicy
      * Determine whether the user can manage
      * Instagram for this workspace.
      */
+    /**
+     * Determine whether the user can manage
+     * Instagram for this workspace.
+     */
     public function manageInstagram(
         User $user,
         Workspace $workspace
     ): bool {
-        if (!$user->isAdmin()) {
-            return false;
+        /*
+         * System administrators always have
+         * access to Instagram Manager.
+         */
+        if ($user->isAdmin()) {
+            return true;
         }
 
         /*
-         * Admin must also belong to this workspace.
+         * Regular users may access Instagram
+         * only when an explicit grant exists
+         * for this workspace.
          */
         return $workspace
-            ->memberships()
+            ->instagramAccessGrants()
             ->where(
                 'user_id',
                 $user->id
             )
             ->exists();
+    }
+
+    /**
+     * Determine whether the user can manage
+     * Instagram access grants.
+     */
+    public function manageInstagramAccess(
+        User $user,
+        Workspace $workspace
+    ): bool {
+        return $user->isAdmin();
     }
 
     /**
