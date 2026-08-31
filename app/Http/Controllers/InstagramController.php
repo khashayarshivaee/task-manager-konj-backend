@@ -402,7 +402,7 @@ class InstagramController extends Controller
                     $request->hasFile('images')
                 ),
                 'file',
-                'mimes:jpg,jpeg',
+                'mimes:jpg,jpeg,png,webp',
                 'max:8192',
             ],
             'images' => [
@@ -418,7 +418,7 @@ class InstagramController extends Controller
             'images.*' => [
                 'required',
                 'file',
-                'mimes:jpg,jpeg',
+                'mimes:jpg,jpeg,png,webp',
                 'max:8192',
             ],
             'caption' => [
@@ -852,7 +852,7 @@ class InstagramController extends Controller
             'image' => [
                 'required',
                 'file',
-                'mimes:jpg,jpeg',
+                'mimes:jpg,jpeg,png,webp',
                 'max:8192',
             ],
         ]);
@@ -1373,7 +1373,7 @@ class InstagramController extends Controller
                     $request->hasFile('files')
                 ),
                 'file',
-                'mimes:jpg,jpeg,mp4,mov',
+                'mimes:jpg,jpeg,png,webp,mp4,mov',
                 'max:102400',
             ],
             'files' => [
@@ -1390,7 +1390,7 @@ class InstagramController extends Controller
             'files.*' => [
                 'required',
                 'file',
-                'mimes:jpg,jpeg',
+                'mimes:jpg,jpeg,png,webp',
                 'max:8192',
             ],
             'caption' => [
@@ -1490,14 +1490,19 @@ class InstagramController extends Controller
                 $mediaKind === 'image'
                 && !in_array(
                     $extension,
-                    ['jpg', 'jpeg'],
+                    [
+                        'jpg',
+                        'jpeg',
+                        'png',
+                        'webp',
+                    ],
                     true,
                 )
             ) {
                 return response()->json(
                     [
                         'message' =>
-                            'Scheduled Instagram images must be JPG or JPEG.',
+                            'Scheduled Instagram images must be JPG, JPEG, PNG, or WebP.',
                     ],
                     Response::HTTP_UNPROCESSABLE_ENTITY,
                 );
