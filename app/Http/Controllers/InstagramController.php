@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Http\Request;
 use App\Models\InstagramPublication;
 use Carbon\CarbonImmutable;
+use Illuminate\Validation\Rule;
 class InstagramController extends Controller
 {
     public function __construct(
@@ -397,7 +398,9 @@ class InstagramController extends Controller
             'image' => [
                 'nullable',
                 'required_without:images',
-                'prohibited_with:images',
+                Rule::prohibitedIf(
+                    $request->hasFile('images')
+                ),
                 'file',
                 'mimes:jpg,jpeg',
                 'max:8192',
@@ -405,7 +408,9 @@ class InstagramController extends Controller
             'images' => [
                 'nullable',
                 'required_without:image',
-                'prohibited_with:image',
+                Rule::prohibitedIf(
+                    $request->hasFile('image')
+                ),
                 'array',
                 'min:1',
                 'max:10',
@@ -1364,7 +1369,9 @@ class InstagramController extends Controller
             'file' => [
                 'nullable',
                 'required_without:files',
-                'prohibited_with:files',
+                Rule::prohibitedIf(
+                    $request->hasFile('files')
+                ),
                 'file',
                 'mimes:jpg,jpeg,mp4,mov',
                 'max:102400',
@@ -1372,7 +1379,9 @@ class InstagramController extends Controller
             'files' => [
                 'nullable',
                 'required_without:file',
-                'prohibited_with:file',
+                Rule::prohibitedIf(
+                    $request->hasFile('file')
+                ),
                 'prohibited_unless:type,image',
                 'array',
                 'min:1',
