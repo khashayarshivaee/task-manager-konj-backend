@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use App\Models\InstagramPublication;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\Rule;
+
 class InstagramController extends Controller
 {
     public function __construct(
@@ -24,7 +25,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -81,7 +82,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -118,7 +119,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -155,7 +156,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -206,7 +207,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -258,7 +259,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -334,7 +335,7 @@ class InstagramController extends Controller
         Workspace $workspace
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -390,7 +391,7 @@ class InstagramController extends Controller
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -577,7 +578,7 @@ class InstagramController extends Controller
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -653,7 +654,7 @@ class InstagramController extends Controller
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -755,7 +756,7 @@ class InstagramController extends Controller
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -844,7 +845,7 @@ class InstagramController extends Controller
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -933,7 +934,7 @@ class InstagramController extends Controller
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -984,7 +985,7 @@ class InstagramController extends Controller
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
         Gate::authorize(
-            'update',
+            'manageInstagram',
             $workspace
         );
 
@@ -1043,7 +1044,10 @@ class InstagramController extends Controller
         string $commentId,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1086,7 +1090,10 @@ class InstagramController extends Controller
         string $commentId,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1129,7 +1136,10 @@ class InstagramController extends Controller
         string $commentId,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1171,7 +1181,10 @@ class InstagramController extends Controller
         Workspace $workspace,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1212,7 +1225,10 @@ class InstagramController extends Controller
         string $conversationId,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1254,7 +1270,10 @@ class InstagramController extends Controller
         string $messageId,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $account = $workspace
             ->instagramAccounts()
@@ -1296,7 +1315,10 @@ class InstagramController extends Controller
         Workspace $workspace,
         \App\Services\InstagramApiService $instagramApiService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $validated = $request->validate([
             'recipient_id' => [
@@ -1353,7 +1375,10 @@ class InstagramController extends Controller
         Workspace $workspace,
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $validated = $request->validate([
             'type' => [
@@ -1641,7 +1666,10 @@ class InstagramController extends Controller
         Request $request,
         Workspace $workspace
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         $validated = $request->validate([
             'status' => [
@@ -1738,7 +1766,10 @@ class InstagramController extends Controller
         \App\Models\InstagramPublication $publication,
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         if ($publication->workspace_id !== $workspace->id) {
             abort(Response::HTTP_NOT_FOUND);
@@ -1774,7 +1805,10 @@ class InstagramController extends Controller
         \App\Models\InstagramPublication $publication,
         \App\Services\InstagramPublishingService $publishingService
     ): JsonResponse {
-        Gate::authorize('update', $workspace);
+        Gate::authorize(
+            'manageInstagram',
+            $workspace
+        );
 
         if ($publication->workspace_id !== $workspace->id) {
             abort(Response::HTTP_NOT_FOUND);

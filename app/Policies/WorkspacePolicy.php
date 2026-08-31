@@ -57,6 +57,30 @@ class WorkspacePolicy
     }
 
     /**
+     * Determine whether the user can manage
+     * Instagram for this workspace.
+     */
+    public function manageInstagram(
+        User $user,
+        Workspace $workspace
+    ): bool {
+        if (!$user->isAdmin()) {
+            return false;
+        }
+
+        /*
+         * Admin must also belong to this workspace.
+         */
+        return $workspace
+            ->memberships()
+            ->where(
+                'user_id',
+                $user->id
+            )
+            ->exists();
+    }
+
+    /**
      * Determine whether the user can permanently delete the workspace.
      */
     public function delete(
