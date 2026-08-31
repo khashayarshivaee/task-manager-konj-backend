@@ -30,7 +30,7 @@ class InstagramPublishingService
         UploadedFile $image,
         ?string $caption = null,
     ): InstagramPublication {
-        $storedImage = $this->storageService->storeImage(
+        $storedImage = $this->storageService->storeFeedImage(
             $image,
         );
 
@@ -386,12 +386,36 @@ class InstagramPublishingService
         ?string $caption = null,
         array $options = [],
     ): InstagramPublication {
-        $storedFile = match ($mediaKind) {
-            'image' => $this->storageService->storeImage(
+        $storedFile = match (true) {
+            /*
+             * Scheduled Feed Image Post.
+             *
+             * Normalize the aspect ratio to Instagram
+             * Feed limits without cropping.
+             */
+            $type === 'image'
+            && $mediaKind === 'image' =>
+            $this->storageService->storeFeedImage(
                 $file,
             ),
 
-            'video' => $this->storageService->storeVideo(
+            /*
+             * Scheduled Image Story.
+             *
+             * Keep the original aspect ratio because
+             * Story images may use 9:16.
+             */
+            $type === 'story'
+            && $mediaKind === 'image' =>
+            $this->storageService->storeImage(
+                $file,
+            ),
+
+            /*
+             * Reel / Video Story.
+             */
+            $mediaKind === 'video' =>
+            $this->storageService->storeVideo(
                 $file,
             ),
 
@@ -1188,7 +1212,7 @@ class InstagramPublishingService
                 }
 
                 $storedImages[] =
-                    $this->storageService->storeImage(
+                    $this->storageService->storeFeedImage(
                         $image,
                     );
             }
