@@ -20,7 +20,7 @@ return [
 
     'server' => env(
         'XRAY_SERVER',
-        '91.98.105.190',
+        '91.98.111.234',
     ),
 
     'port' => (int) env(
