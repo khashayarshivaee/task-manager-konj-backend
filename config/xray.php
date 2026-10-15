@@ -20,7 +20,7 @@ return [
 
     'server' => env(
         'XRAY_SERVER',
-        '91.98.111.234',
+        '116.202.1.136',
     ),
 
     'port' => (int) env(
@@ -30,7 +30,7 @@ return [
 
     'server_name' => env(
         'XRAY_SERVER_NAME',
-        'www.hetzner.com',
+        'www.icloud.com',
     ),
 
     'public_key' => env(
