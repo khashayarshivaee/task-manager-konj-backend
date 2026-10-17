@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\VpnSessionController;
 use App\Http\Middleware\EnsureCanAccessVpnSessions;
 use App\Http\Controllers\InstagramMediaProxyController;
+use App\Http\Controllers\Api\VpnDailyUsageController;
 /*
 |--------------------------------------------------------------------------
 | Authentication
@@ -1085,13 +1086,40 @@ Route::post(
         EnsureCanAccessVpnSessions::class,
     ]);
 
+
 Route::get(
     '/vpn/users/{vpnUser}/destinations',
     [
         VpnUserDestinationController::class,
         'index',
     ],
-);
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+
+
+/*
+|--------------------------------------------------------------------------
+| VPN Daily Usage
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/vpn/usage/daily',
+    VpnDailyUsageController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
 
 
 

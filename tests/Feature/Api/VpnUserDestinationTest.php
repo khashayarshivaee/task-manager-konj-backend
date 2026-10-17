@@ -16,7 +16,9 @@ class VpnUserDestinationTest extends TestCase
 
     public function test_authorized_user_can_view_vpn_destinations(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'email' => 'khashayarshivaee@gmail.com',
+        ]);
 
         $this->actingAs($user);
 
