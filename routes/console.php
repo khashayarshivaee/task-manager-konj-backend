@@ -20,3 +20,17 @@ Schedule::command(
 )
     ->everyMinute()
     ->withoutOverlapping();
+
+
+/*
+ * Collect daily VPN traffic usage.
+ *
+ * Runs independently from the
+ * Xray destinations ingestion.
+ */
+Schedule::command(
+    'vpn:xray-collect-usage',
+)
+    ->everyMinute()
+    ->withoutOverlapping();
+
