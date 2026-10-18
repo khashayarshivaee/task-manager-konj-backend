@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\VpnSessionController;
 use App\Http\Middleware\EnsureCanAccessVpnSessions;
 use App\Http\Controllers\InstagramMediaProxyController;
 use App\Http\Controllers\Api\VpnDailyUsageController;
+use App\Http\Controllers\Api\VpnUsageAlertController;
 /*
 |--------------------------------------------------------------------------
 | Authentication
@@ -1119,6 +1120,61 @@ Route::get(
         'verified',
         EnsureCanAccessVpnSessions::class,
     ]);
+
+
+/*
+|--------------------------------------------------------------------------
+| VPN Usage Alerts
+|--------------------------------------------------------------------------
+|
+| Accessible only by the authorized
+| VPN administrator.
+|
+*/
+
+Route::prefix('vpn/usage/alerts')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ])
+    ->group(function (): void {
+
+        Route::get(
+            '/',
+            [
+                VpnUsageAlertController::class,
+                'index',
+            ],
+        );
+
+        Route::get(
+            '/unread-count',
+            [
+                VpnUsageAlertController::class,
+                'unreadCount',
+            ],
+        );
+
+        Route::patch(
+            '/read-all',
+            [
+                VpnUsageAlertController::class,
+                'readAll',
+            ],
+        );
+
+        Route::patch(
+            '/{alert}/read',
+            [
+                VpnUsageAlertController::class,
+                'read',
+            ],
+        )->whereNumber('alert');
+
+    });
+
 
 
 

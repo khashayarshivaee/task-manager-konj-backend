@@ -12,7 +12,7 @@ use Pushok\Payload;
 use Pushok\Payload\Alert;
 use RuntimeException;
 
-final class ApnsPushService
+class ApnsPushService
 {
     /**
      * @param array<string, mixed> $data
