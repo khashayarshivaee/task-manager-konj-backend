@@ -54,4 +54,21 @@ return [
         'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
     ],
 
+
+    'telegram' => [
+        'bot_token' => env(
+            '8863944997:AAH23_ZexTF-OubhnXeqzhBChDllM8CmePM',
+        ),
+
+        'bot_username' => env(
+            'TELEGRAM_BOT_USERNAME',
+            'konj_team_bot',
+        ),
+
+        'webhook_secret' => env(
+            'TELEGRAM_WEBHOOK_SECRET',
+        ),
+    ],
+
+
 ];

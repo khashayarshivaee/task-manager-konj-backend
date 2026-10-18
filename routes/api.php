@@ -37,6 +37,102 @@ use App\Http\Middleware\EnsureCanAccessVpnSessions;
 use App\Http\Controllers\InstagramMediaProxyController;
 use App\Http\Controllers\Api\VpnDailyUsageController;
 use App\Http\Controllers\Api\VpnUsageAlertController;
+use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\Api\VpnTelegramLinkController;
+use App\Http\Controllers\Api\VpnTelegramConnectionController;
+
+/*
+|--------------------------------------------------------------------------
+| KONJ TEAM Telegram Bot Webhook
+|--------------------------------------------------------------------------
+|
+| Telegram calls this endpoint without
+| a Sanctum access token.
+|
+| Requests are authenticated using
+| the Telegram webhook secret header
+| inside TelegramWebhookController.
+|
+*/
+
+Route::post(
+    '/telegram/webhook',
+    TelegramWebhookController::class,
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| VPN Telegram Integration
+|--------------------------------------------------------------------------
+|
+| Generate a secure Telegram invitation
+| link for a VPN user.
+|
+| Only the authorized VPN administrator
+| can access this endpoint.
+|
+*/
+
+Route::post(
+    '/vpn/users/{vpnUser}/telegram/link',
+    VpnTelegramLinkController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
+
+/*
+|--------------------------------------------------------------------------
+| VPN Telegram Connection Management
+|--------------------------------------------------------------------------
+|
+| View and disconnect Telegram accounts
+| associated with VPN users.
+|
+| Only the authorized VPN administrator
+| can access these endpoints.
+|
+*/
+
+Route::prefix('vpn/users/{vpnUser}/telegram')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ])
+    ->group(function (): void {
+
+        /*
+         * Get Telegram connection status.
+         */
+        Route::get(
+            '/',
+            [
+                VpnTelegramConnectionController::class,
+                'show',
+            ],
+        );
+
+        /*
+         * Disconnect Telegram without
+         * affecting the VPN connection.
+         */
+        Route::delete(
+            '/',
+            [
+                VpnTelegramConnectionController::class,
+                'destroy',
+            ],
+        );
+
+    });
+
 /*
 |--------------------------------------------------------------------------
 | Authentication

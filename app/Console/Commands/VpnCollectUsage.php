@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Services\VpnUsageAlertService;
 use App\Services\VpnUsageCollectorService;
+use App\Services\VpnTelegramUsageNotificationService;
 use Illuminate\Console\Command;
 use Throwable;
 
@@ -20,6 +21,7 @@ class VpnCollectUsage extends Command
     public function handle(
         VpnUsageCollectorService $collector,
         VpnUsageAlertService $alertService,
+        VpnTelegramUsageNotificationService $telegramService,
     ): int {
         /*
          * Step 1:
@@ -37,14 +39,14 @@ class VpnCollectUsage extends Command
             ),
         );
 
+        $alertDetectionFailed = false;
+
         /*
          * Step 2:
-         * Detect 3 GB and 5 GB thresholds
-         * from the stored daily usage.
+         * Existing admin notifications.
          *
-         * Run even if collection failed
-         * for some users, so successfully
-         * collected users are still checked.
+         * Keep the original APNs
+         * notification behavior.
          */
         try {
             $createdAlerts =
@@ -63,14 +65,59 @@ class VpnCollectUsage extends Command
                 'VPN usage alert detection failed.',
             );
 
-            return self::FAILURE;
+            $alertDetectionFailed = true;
         }
 
+        /*
+         * Step 3:
+         * KONJ TEAM Telegram notifications.
+         *
+         * Runs independently from
+         * admin push notifications.
+         *
+         * Telegram delivery is handled
+         * asynchronously by the queue.
+         */
+        try {
+            $createdTelegramNotifications =
+                $telegramService->detect();
+
+            $this->info(
+                sprintf(
+                    'VPN Telegram notifications: %d new notification(s).',
+                    $createdTelegramNotifications,
+                ),
+            );
+        } catch (Throwable $exception) {
+            /*
+             * A Telegram problem must
+             * not stop VPN collection
+             * or the existing APNs logic.
+             *
+             * Log the problem and retry
+             * detection on the next run.
+             */
+            report($exception);
+
+            $this->warn(
+                'VPN Telegram notification detection failed.',
+            );
+        }
+
+        /*
+         * Preserve the original command
+         * failure behavior for collector
+         * and admin alert failures.
+         */
         if ($result['failed'] > 0) {
             $this->error(
                 'Some VPN users could not be processed.',
             );
 
+            return self::FAILURE;
+        }
+
+        if ($alertDetectionFailed) {
             return self::FAILURE;
         }
 
