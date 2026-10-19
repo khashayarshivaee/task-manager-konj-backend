@@ -30,7 +30,7 @@ return [
 
     'server_name' => env(
         'XRAY_SERVER_NAME',
-        'www.icloud.com',
+        'www.microsoft.com',
     ),
 
     'public_key' => env(
