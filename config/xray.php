@@ -30,7 +30,7 @@ return [
 
     'server_name' => env(
         'XRAY_SERVER_NAME',
-        'www.microsoft.com',
+        'www.cloudflare.com',
     ),
 
     'public_key' => env(
