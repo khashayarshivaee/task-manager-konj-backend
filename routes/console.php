@@ -49,3 +49,8 @@ Schedule::command(
 )
     ->everyMinute()
     ->withoutOverlapping();
+
+
+Schedule::command('vpn:xray-resync')
+    ->everyMinute()
+    ->withoutOverlapping();
