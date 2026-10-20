@@ -96,10 +96,23 @@ class VpnUsageCollectorService
 
     private function getXrayInvocationId(): string
     {
+        $serviceName = trim(
+            (string) config(
+                'xray.service_name',
+                'xray.service',
+            ),
+        );
+
+        if ($serviceName === '') {
+            throw new RuntimeException(
+                'Xray service name is not configured.',
+            );
+        }
+
         $result = Process::timeout(5)->run([
             'systemctl',
             'show',
-            'xray.service',
+            $serviceName,
             '--property=InvocationID',
             '--value',
         ]);

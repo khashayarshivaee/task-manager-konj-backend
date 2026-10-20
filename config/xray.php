@@ -8,6 +8,11 @@ return [
         '/usr/local/bin/xray',
     ),
 
+    'service_name' => env(
+        'XRAY_SERVICE_NAME',
+        'xray.service',
+    ),
+
     'api_server' => env(
         'XRAY_API_SERVER',
         '127.0.0.1:10085',
@@ -49,5 +54,10 @@ return [
     'flow' => env(
         'XRAY_FLOW',
         'xtls-rprx-vision',
+    ),
+
+    'access_log' => env(
+        'XRAY_ACCESS_LOG',
+        '/var/log/xray/access.log',
     ),
 ];

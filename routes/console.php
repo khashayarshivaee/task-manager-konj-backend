@@ -15,12 +15,28 @@ Artisan::command('inspire', function (): void {
         'Display an inspiring quote',
     );
 
+/*
+ * Collect VPN user destinations.
+ *
+ * The log path and cursor source are
+ * configurable for each Xray instance.
+ */
 Schedule::command(
     'vpn:xray-ingest-destinations',
+    [
+        '--file' => config(
+            'xray.access_log',
+            '/var/log/xray/access.log',
+        ),
+
+        '--source' => config(
+            'xray.access_log_source',
+            'xray-access',
+        ),
+    ],
 )
     ->everyMinute()
     ->withoutOverlapping();
-
 
 /*
  * Collect daily VPN traffic usage.
@@ -33,4 +49,3 @@ Schedule::command(
 )
     ->everyMinute()
     ->withoutOverlapping();
-
