@@ -40,7 +40,7 @@ use App\Http\Controllers\Api\VpnUsageAlertController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\VpnTelegramLinkController;
 use App\Http\Controllers\Api\VpnTelegramConnectionController;
-
+use App\Http\Controllers\Api\VpnUserPermanentDeleteController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1197,6 +1197,25 @@ Route::get(
         'verified',
         EnsureCanAccessVpnSessions::class,
     ]);
+
+
+/*
+|--------------------------------------------------------------------------
+| Permanently Delete VPN User
+|--------------------------------------------------------------------------
+*/
+
+Route::delete(
+    '/vpn/users/{vpnUser}/permanent',
+    VpnUserPermanentDeleteController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
 
 
 
