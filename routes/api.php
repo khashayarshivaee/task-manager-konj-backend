@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\VpnTelegramConnectionController;
 use App\Http\Controllers\Api\VpnUserPermanentDeleteController;
 use App\Http\Controllers\Api\ClientSpeedTestController;
 use App\Http\Controllers\Api\ServerSpeedTestController;
+use App\Http\Controllers\Api\ServerHealthController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1420,3 +1421,28 @@ Route::get(
         EnsureUserIsActive::class,
         'verified',
     ]);
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Status - Server Health
+|--------------------------------------------------------------------------
+|
+| Available to all active and verified
+| Task Manager users.
+|
+| Only returns cached CPU, RAM, Disk
+| and Uptime information.
+|
+*/
+
+Route::get(
+    '/server-status/health',
+    ServerHealthController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ]);
+

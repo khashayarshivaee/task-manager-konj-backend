@@ -5,6 +5,8 @@ declare(strict_types=1);
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Services\ServerHealthService;
+use Illuminate\Support\Facades\Cache;
 
 Artisan::command('inspire', function (): void {
     $this->comment(
@@ -73,5 +75,36 @@ Schedule::command('server-status:collect-speed-test')
     ->everySixHours()
     ->withoutOverlapping(5)
     ->runInBackground();
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Health Monitoring
+|--------------------------------------------------------------------------
+|
+| Collect CPU, RAM, Disk and Uptime
+| every minute.
+|
+| All users read the same cached result.
+|
+*/
+
+Schedule::call(function (): void {
+
+    $health = app(
+        ServerHealthService::class
+    )->collect();
+
+    Cache::put(
+        'server-status:health:latest',
+        $health,
+        now()->addMinutes(3)
+    );
+
+})
+    ->name('server-status:collect-health')
+    ->everyMinute()
+    ->withoutOverlapping(2);
 
 
