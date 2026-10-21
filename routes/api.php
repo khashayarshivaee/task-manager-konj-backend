@@ -1343,15 +1343,16 @@ Route::prefix('admin')
     });
 
 
+
 /*
 |--------------------------------------------------------------------------
 | Server Status - Client Speed Test
 |--------------------------------------------------------------------------
 |
-| Available to all authenticated and verified
-| Task Manager users.
+| Available to all authenticated and
+| verified Task Manager users.
 |
-| VPN administration permissions are not required.
+| Independent rate limits for each test.
 |
 */
 
@@ -1369,7 +1370,9 @@ Route::prefix('server-status/speed-test')
                 ClientSpeedTestController::class,
                 'ping',
             ],
-        )->middleware('throttle:30,1');
+        )->middleware(
+            'throttle:client-speed-ping'
+        );
 
         Route::get(
             '/download',
@@ -1377,7 +1380,9 @@ Route::prefix('server-status/speed-test')
                 ClientSpeedTestController::class,
                 'download',
             ],
-        )->middleware('throttle:5,1');
+        )->middleware(
+            'throttle:client-speed-download'
+        );
 
         Route::post(
             '/upload',
@@ -1385,7 +1390,8 @@ Route::prefix('server-status/speed-test')
                 ClientSpeedTestController::class,
                 'upload',
             ],
-        )->middleware('throttle:5,1');
+        )->middleware(
+            'throttle:client-speed-upload'
+        );
 
     });
-

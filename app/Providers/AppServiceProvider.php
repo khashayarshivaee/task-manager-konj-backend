@@ -7,6 +7,9 @@ namespace App\Providers;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Http\Request;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +26,46 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Client Speed Test Rate Limits
+        |--------------------------------------------------------------------------
+        |
+        | Separate counters for Ping, Download
+        | and Upload.
+        |
+        */
+
+        RateLimiter::for(
+            'client-speed-ping',
+            fn (Request $request) =>
+            Limit::perMinute(30)->by(
+                'speed-ping:' .
+                $request->user()->getAuthIdentifier()
+            ),
+        );
+
+        RateLimiter::for(
+            'client-speed-download',
+            fn (Request $request) =>
+            Limit::perMinute(5)->by(
+                'speed-download:' .
+                $request->user()->getAuthIdentifier()
+            ),
+        );
+
+        RateLimiter::for(
+            'client-speed-upload',
+            fn (Request $request) =>
+            Limit::perMinute(5)->by(
+                'speed-upload:' .
+                $request->user()->getAuthIdentifier()
+            ),
+        );
+
+
         VerifyEmail::toMailUsing(
             function (
                 object $notifiable,
