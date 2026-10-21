@@ -189,10 +189,14 @@ final class ServerServicesStatusService
     private function readSupervisorStates(): array
     {
         try {
+
             $result = Process::timeout(5)->run([
-                'supervisorctl',
+                'sudo',
+                '-n',
+                '/usr/bin/supervisorctl',
                 'status',
             ]);
+
 
             if ($result->failed()) {
                 return [];
