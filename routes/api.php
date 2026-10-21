@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Api\VpnTelegramLinkController;
 use App\Http\Controllers\Api\VpnTelegramConnectionController;
 use App\Http\Controllers\Api\VpnUserPermanentDeleteController;
+use App\Http\Controllers\Api\ClientSpeedTestController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1340,3 +1341,51 @@ Route::prefix('admin')
             ],
         );
     });
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Status - Client Speed Test
+|--------------------------------------------------------------------------
+|
+| Available to all authenticated and verified
+| Task Manager users.
+|
+| VPN administration permissions are not required.
+|
+*/
+
+Route::prefix('server-status/speed-test')
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ])
+    ->group(function (): void {
+
+        Route::get(
+            '/ping',
+            [
+                ClientSpeedTestController::class,
+                'ping',
+            ],
+        )->middleware('throttle:30,1');
+
+        Route::get(
+            '/download',
+            [
+                ClientSpeedTestController::class,
+                'download',
+            ],
+        )->middleware('throttle:5,1');
+
+        Route::post(
+            '/upload',
+            [
+                ClientSpeedTestController::class,
+                'upload',
+            ],
+        )->middleware('throttle:5,1');
+
+    });
+
