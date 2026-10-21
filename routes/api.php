@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\VpnUserPermanentDeleteController;
 use App\Http\Controllers\Api\ClientSpeedTestController;
 use App\Http\Controllers\Api\ServerSpeedTestController;
 use App\Http\Controllers\Api\ServerHealthController;
+use App\Http\Controllers\Api\ServerServicesStatusController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1445,4 +1446,15 @@ Route::get(
         EnsureUserIsActive::class,
         'verified',
     ]);
+
+
+Route::middleware([
+    'auth:sanctum',
+    \App\Http\Middleware\EnsureUserIsActive::class,
+    'verified',
+])->get(
+    '/server-status/services',
+    ServerServicesStatusController::class
+);
+
 

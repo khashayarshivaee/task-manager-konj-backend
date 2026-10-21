@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use App\Services\ServerHealthService;
 use Illuminate\Support\Facades\Cache;
+use App\Services\ServerServicesStatusService;
 
 Artisan::command('inspire', function (): void {
     $this->comment(
@@ -106,5 +107,37 @@ Schedule::call(function (): void {
     ->name('server-status:collect-health')
     ->everyMinute()
     ->withoutOverlapping(2);
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Services Status Monitoring
+|--------------------------------------------------------------------------
+|
+| Collect systemd and Supervisor service states
+| every minute.
+|
+| All users read the same cached result.
+|
+*/
+
+Schedule::call(function (): void {
+
+    $services = app(
+        ServerServicesStatusService::class
+    )->collect();
+
+    Cache::put(
+        'server-status:services:latest',
+        $services,
+        now()->addMinutes(3)
+    );
+
+})
+    ->name('server-status:collect-services')
+    ->everyMinute()
+    ->withoutOverlapping(2);
+
 
 
