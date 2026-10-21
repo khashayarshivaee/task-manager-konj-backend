@@ -11,12 +11,10 @@ use Illuminate\Http\Response;
 
 final class ClientSpeedTestController extends Controller
 {
-    private const DOWNLOAD_BYTES = 2 * 1024 * 1024;
-
     private const MAX_UPLOAD_BYTES = 1024 * 1024;
 
     /**
-     * Lightweight endpoint for latency measurement.
+     * Measure client-to-server response latency.
      */
     public function ping(): JsonResponse
     {
@@ -34,40 +32,87 @@ final class ClientSpeedTestController extends Controller
     }
 
     /**
-     * Send 2 MiB of random data to measure download.
+     * Download a configurable amount of random data.
+     *
+     * Supported sizes:
+     * 2 MiB - Initial measurement / warm-up
+     * 4 MiB - Medium connection
+     * 8 MiB - Faster connection
+     *
+     * Maximum: 8 MiB per request.
      */
-    public function download(): Response
-    {
+    public function download(
+        Request $request,
+    ): Response|JsonResponse {
+
+        $megabytes = $request->query(
+            'mb',
+            '2',
+        );
+
+        if (
+            !is_string($megabytes) ||
+            !in_array(
+                $megabytes,
+                ['2', '4', '8'],
+                true,
+            )
+        ) {
+            return response()->json(
+                [
+                    'message' =>
+                        'Invalid download size.',
+                ],
+                422,
+            );
+        }
+
+        $downloadBytes =
+            (int) $megabytes * 1024 * 1024;
+
         $payload = random_bytes(
-            self::DOWNLOAD_BYTES,
+            $downloadBytes,
         );
 
         return response(
             $payload,
             200,
             [
-                'Content-Type' => 'application/octet-stream',
-                'Content-Length' => (string) self::DOWNLOAD_BYTES,
-                'Cache-Control' => 'private, no-store, no-transform',
-                'X-Content-Type-Options' => 'nosniff',
+                'Content-Type' =>
+                    'application/octet-stream',
+
+                'Content-Length' =>
+                    (string) $downloadBytes,
+
+                'Cache-Control' =>
+                    'private, no-store, no-transform',
+
+                'X-Content-Type-Options' =>
+                    'nosniff',
             ],
         );
     }
 
     /**
-     * Receive up to 1 MiB to measure upload.
+     * Receive up to 1 MiB per upload request.
      */
-    public function upload(Request $request): JsonResponse
-    {
+    public function upload(
+        Request $request,
+    ): JsonResponse {
+
         $declaredLength = (int) $request->header(
             'Content-Length',
             '0',
         );
 
-        if ($declaredLength > self::MAX_UPLOAD_BYTES) {
+        if (
+            $declaredLength >
+            self::MAX_UPLOAD_BYTES
+        ) {
             return response()->json(
                 [
-                    'message' => 'Upload payload is too large.',
+                    'message' =>
+                        'Upload payload is too large.',
                 ],
                 413,
             );
@@ -77,10 +122,14 @@ final class ClientSpeedTestController extends Controller
             $request->getContent(),
         );
 
-        if ($receivedBytes > self::MAX_UPLOAD_BYTES) {
+        if (
+            $receivedBytes >
+            self::MAX_UPLOAD_BYTES
+        ) {
             return response()->json(
                 [
-                    'message' => 'Upload payload is too large.',
+                    'message' =>
+                        'Upload payload is too large.',
                 ],
                 413,
             );
@@ -89,7 +138,8 @@ final class ClientSpeedTestController extends Controller
         if ($receivedBytes === 0) {
             return response()->json(
                 [
-                    'message' => 'Upload payload is empty.',
+                    'message' =>
+                        'Upload payload is empty.',
                 ],
                 422,
             );
@@ -98,7 +148,8 @@ final class ClientSpeedTestController extends Controller
         return response()->json(
             [
                 'data' => [
-                    'received_bytes' => $receivedBytes,
+                    'received_bytes' =>
+                        $receivedBytes,
                 ],
             ],
             200,
