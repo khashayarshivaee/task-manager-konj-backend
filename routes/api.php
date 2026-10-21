@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\VpnTelegramLinkController;
 use App\Http\Controllers\Api\VpnTelegramConnectionController;
 use App\Http\Controllers\Api\VpnUserPermanentDeleteController;
 use App\Http\Controllers\Api\ClientSpeedTestController;
+use App\Http\Controllers\Api\ServerSpeedTestController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1395,3 +1396,27 @@ Route::prefix('server-status/speed-test')
         );
 
     });
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Status - Server Speed Test
+|--------------------------------------------------------------------------
+|
+| All active and verified Task Manager users
+| can view the latest server speed test result.
+|
+| Reading this endpoint never starts a new test.
+|
+*/
+
+Route::get(
+    '/server-status/server-speed-test',
+    ServerSpeedTestController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+    ]);

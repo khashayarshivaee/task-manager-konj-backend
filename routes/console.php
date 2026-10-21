@@ -54,3 +54,24 @@ Schedule::command(
 Schedule::command('vpn:xray-resync')
     ->everyMinute()
     ->withoutOverlapping();
+
+
+/*
+|--------------------------------------------------------------------------
+| Server Speed Test
+|--------------------------------------------------------------------------
+|
+| Measure the server's external internet speed
+| every 6 hours and cache the latest result.
+|
+| Run in background to avoid blocking
+| other scheduled VPN tasks.
+|
+*/
+
+Schedule::command('server-status:collect-speed-test')
+    ->everySixHours()
+    ->withoutOverlapping(5)
+    ->runInBackground();
+
+
