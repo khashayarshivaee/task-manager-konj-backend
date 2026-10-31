@@ -21,6 +21,8 @@ class VpnConnectionService
      *     fingerprint: string,
      *     public_key: string,
      *     short_id: string,
+     *     ws_host: string,
+     *     ws_path: string,
      *     url: string
      * }
      */
@@ -28,31 +30,55 @@ class VpnConnectionService
         VpnUser $vpnUser,
     ): array {
         $server = $this->requiredConfig('xray.server');
+
+        $port = (int) config('xray.port', 443);
+
         $serverName = $this->requiredConfig(
             'xray.server_name',
         );
-        $publicKey = $this->requiredConfig(
-            'xray.public_key',
-        );
-        $shortId = $this->requiredConfig(
-            'xray.short_id',
-        );
-        $fingerprint = $this->requiredConfig(
-            'xray.fingerprint',
+
+        $security = $this->requiredConfig(
+            'xray.security',
         );
 
-        $port = (int) config('xray.port', 443);
+        $network = $this->requiredConfig(
+            'xray.network',
+        );
+
+        $wsHost = $this->requiredConfig(
+            'xray.ws_host',
+        );
+
+        $wsPath = $this->requiredConfig(
+            'xray.ws_path',
+        );
+
+        if ($port < 1 || $port > 65535) {
+            throw new RuntimeException(
+                'Invalid VPN server port.',
+            );
+        }
+
+        if ($security !== 'tls' || $network !== 'ws') {
+            throw new RuntimeException(
+                'VPN connection requires WebSocket over TLS.',
+            );
+        }
+
+        if (!str_starts_with($wsPath, '/')) {
+            throw new RuntimeException(
+                'VPN WebSocket path must start with "/".',
+            );
+        }
 
         $query = http_build_query(
             [
                 'encryption' => 'none',
-                'flow' => $vpnUser->flow,
-                'security' => 'reality',
+                'security' => $security,
                 'sni' => $serverName,
-                'fp' => $fingerprint,
-                'pbk' => $publicKey,
-                'sid' => $shortId,
-                'type' => 'tcp',
+                'type' => $network,
+                'host' => $wsHost,
+                'path' => $wsPath,
             ],
             '',
             '&',
@@ -72,13 +98,22 @@ class VpnConnectionService
             'server' => $server,
             'port' => $port,
             'uuid' => $vpnUser->uuid,
-            'flow' => $vpnUser->flow,
-            'security' => 'reality',
-            'network' => 'tcp',
+
+            // WebSocket + TLS does not use Reality flow.
+            'flow' => '',
+
+            'security' => $security,
+            'network' => $network,
             'server_name' => $serverName,
-            'fingerprint' => $fingerprint,
-            'public_key' => $publicKey,
-            'short_id' => $shortId,
+
+            // Legacy fields retained for API compatibility.
+            'fingerprint' => '',
+            'public_key' => '',
+            'short_id' => '',
+
+            'ws_host' => $wsHost,
+            'ws_path' => $wsPath,
+
             'url' => $url,
         ];
     }

@@ -22,6 +22,10 @@ class VpnUsageCollectorTest extends TestCase
 
     private string $invocationId;
 
+    private int $uptimeSeconds = 1000;
+
+    private array $uptimeSamples = [];
+
     private array $samples = [];
 
     protected function setUp(): void
@@ -38,7 +42,26 @@ class VpnUsageCollectorTest extends TestCase
             'flow' => 'xtls-rprx-vision',
         ]);
 
-        Process::fake(function () {
+        Process::fake(function (
+            \Illuminate\Process\PendingProcess $process,
+        ) {
+            $command = (array) $process->command;
+
+            if (in_array('statssys', $command, true)) {
+                $uptime = array_shift($this->uptimeSamples);
+
+                if ($uptime === null) {
+                    $uptime = $this->uptimeSeconds;
+                }
+
+                return Process::result(
+                    json_encode(
+                        ['Uptime' => $uptime],
+                        JSON_THROW_ON_ERROR,
+                    ),
+                );
+            }
+
             return Process::result(
                 $this->invocationId . "\n",
             );
@@ -92,6 +115,8 @@ class VpnUsageCollectorTest extends TestCase
 
         // Simulate a new Xray runtime.
         $this->invocationId = str_repeat('b', 32);
+
+        $this->uptimeSeconds = 20;
 
         $this->collectSample(30, 40);
 
@@ -281,4 +306,93 @@ class VpnUsageCollectorTest extends TestCase
             (int) $record->uplink_bytes,
         );
     }
+
+
+    public function test_legacy_checkpoint_migrates_without_double_counting(): void
+    {
+        $this->uptimeSeconds = 1000;
+
+        $now = now('UTC');
+
+        // Simulate an existing checkpoint created
+        // by the old systemctl-based collector.
+        DB::table('vpn_user_usage_checkpoints')->insert([
+            'vpn_user_id' => $this->vpnUser->id,
+            'last_downlink_bytes' => 1000,
+            'last_uplink_bytes' => 500,
+            'xray_invocation_id' => str_repeat('a', 32),
+            'xray_last_uptime_seconds' => null,
+            'vpn_user_updated_at' =>
+                $this->vpnUser->getRawOriginal('updated_at'),
+            'last_collected_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // First collection after migration.
+        $first = $this->collectSample(1600, 800);
+
+        $this->assertSame(1, $first['baselined']);
+
+        // Old traffic must not be counted again.
+        $this->assertDatabaseCount(
+            'vpn_user_daily_usages',
+            0,
+        );
+
+        $checkpoint = DB::table(
+            'vpn_user_usage_checkpoints',
+        )
+            ->where('vpn_user_id', $this->vpnUser->id)
+            ->first();
+
+        $this->assertSame(
+            1000,
+            (int) $checkpoint->xray_last_uptime_seconds,
+        );
+
+        // Subsequent collection counts only new usage.
+        $second = $this->collectSample(1800, 950);
+
+        $this->assertSame(1, $second['collected']);
+
+        $this->assertUsage(200, 150);
+    }
+
+
+    public function test_skips_usage_when_xray_restarts_during_collection(): void
+    {
+        // Xray is running before reading statistics,
+        // but restarts before the second uptime check.
+        $this->uptimeSamples = [
+            1000,
+            10,
+        ];
+
+        $result = $this->collectSample(1500, 800);
+
+        $this->assertSame(
+            1,
+            $result['skipped'],
+        );
+
+        $this->assertSame(
+            0,
+            $result['failed'],
+        );
+
+        // An unsafe sample must not create a checkpoint.
+        $this->assertDatabaseCount(
+            'vpn_user_usage_checkpoints',
+            0,
+        );
+
+        // No traffic should be recorded from this sample.
+        $this->assertDatabaseCount(
+            'vpn_user_daily_usages',
+            0,
+        );
+    }
+
+
 }

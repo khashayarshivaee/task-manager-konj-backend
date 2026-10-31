@@ -25,7 +25,7 @@ class XrayManagerService
                                 'id' => $vpnUser->uuid,
                                 'level' => 0,
                                 'email' => $vpnUser->xray_email,
-                                'flow' => $vpnUser->flow,
+                                'flow' => '',
                             ],
                         ],
                         'decryption' => 'none',
@@ -383,6 +383,14 @@ class XrayManagerService
 
     private function port(): int
     {
-        return (int) config('xray.port');
+        $port = (int) config('xray.inbound_port', 12087);
+
+        if ($port < 1 || $port > 65535) {
+            throw new RuntimeException(
+                'Invalid Xray inbound port.',
+            );
+        }
+
+        return $port;
     }
 }

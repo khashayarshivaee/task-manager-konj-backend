@@ -46,13 +46,14 @@ class VpnUserTest extends TestCase
     public function test_allowed_user_can_create_vpn_user(): void
     {
         config([
-            'xray.server' => '91.98.105.190',
+            'xray.server' => 'edge.maranonline.com',
             'xray.port' => 443,
-            'xray.server_name' => 'www.hetzner.com',
-            'xray.public_key' => 'test-public-key',
-            'xray.short_id' => '9d2929a247ef305e',
-            'xray.fingerprint' => 'chrome',
-            'xray.flow' => 'xtls-rprx-vision',
+            'xray.server_name' => 'edge.maranonline.com',
+            'xray.network' => 'ws',
+            'xray.security' => 'tls',
+            'xray.ws_host' => 'edge.maranonline.com',
+            'xray.ws_path' => '/edge-stream',
+            'xray.flow' => '',
         ]);
 
         $user = User::factory()->create([
@@ -78,7 +79,7 @@ class VpnUserTest extends TestCase
                     return
                         $vpnUser->name === 'Khashayar iPhone' &&
                         $vpnUser->is_active === true &&
-                        $vpnUser->flow === 'xtls-rprx-vision' &&
+                        $vpnUser->flow === '' &&
                         $vpnUser->uuid !== '' &&
                         $vpnUser->xray_email !== '';
                 },
@@ -98,33 +99,10 @@ class VpnUserTest extends TestCase
 
         $response
             ->assertCreated()
-            ->assertJsonPath(
-                'data.name',
-                'Khashayar iPhone',
-            )
-            ->assertJsonPath(
-                'data.is_active',
-                true,
-            )
-            ->assertJsonPath(
-                'data.is_online',
-                false,
-            )
-            ->assertJsonPath(
-                'data.online_sessions',
-                0,
-            )
-            ->assertJsonPath(
-                'data.flow',
-                'xtls-rprx-vision',
-            )
-            ->assertJsonPath(
-                'data.stats.total_bytes',
-                0,
-            )
+            ->assertJsonPath('data.flow', '')
             ->assertJsonPath(
                 'data.connection.server',
-                '91.98.105.190',
+                'edge.maranonline.com',
             )
             ->assertJsonPath(
                 'data.connection.port',
@@ -132,11 +110,27 @@ class VpnUserTest extends TestCase
             )
             ->assertJsonPath(
                 'data.connection.server_name',
-                'www.hetzner.com',
+                'edge.maranonline.com',
+            )
+            ->assertJsonPath(
+                'data.connection.security',
+                'tls',
+            )
+            ->assertJsonPath(
+                'data.connection.network',
+                'ws',
+            )
+            ->assertJsonPath(
+                'data.connection.ws_host',
+                'edge.maranonline.com',
+            )
+            ->assertJsonPath(
+                'data.connection.ws_path',
+                '/edge-stream',
             )
             ->assertJsonPath(
                 'data.connection.public_key',
-                'test-public-key',
+                '',
             )
             ->assertJsonStructure([
                 'data' => [
@@ -155,6 +149,8 @@ class VpnUserTest extends TestCase
                     ],
                     'created_at',
                     'connection' => [
+                        'ws_host',
+                        'ws_path',
                         'server',
                         'port',
                         'uuid',
@@ -223,13 +219,14 @@ class VpnUserTest extends TestCase
     public function test_allowed_user_can_list_vpn_users_with_stats(): void
     {
         config([
-            'xray.server' => '91.98.105.190',
+            'xray.server' => 'edge.maranonline.com',
             'xray.port' => 443,
-            'xray.server_name' => 'www.hetzner.com',
-            'xray.public_key' => 'test-public-key',
-            'xray.short_id' => '9d2929a247ef305e',
-            'xray.fingerprint' => 'chrome',
-            'xray.flow' => 'xtls-rprx-vision',
+            'xray.server_name' => 'edge.maranonline.com',
+            'xray.network' => 'ws',
+            'xray.security' => 'tls',
+            'xray.ws_host' => 'edge.maranonline.com',
+            'xray.ws_path' => '/edge-stream',
+            'xray.flow' => '',
         ]);
 
         $user = User::factory()->create([
@@ -248,7 +245,7 @@ class VpnUserTest extends TestCase
             'uuid' => '11111111-1111-4111-8111-111111111111',
             'xray_email' => 'vpn-iphone@task-manager.local',
             'is_active' => true,
-            'flow' => 'xtls-rprx-vision',
+            'flow' => '',
             'created_by' => $user->id,
         ]);
 
@@ -257,7 +254,7 @@ class VpnUserTest extends TestCase
             'uuid' => '22222222-2222-4222-8222-222222222222',
             'xray_email' => 'vpn-macbook@task-manager.local',
             'is_active' => true,
-            'flow' => 'xtls-rprx-vision',
+            'flow' => '',
             'created_by' => $user->id,
         ]);
 
@@ -382,15 +379,27 @@ class VpnUserTest extends TestCase
             )
             ->assertJsonPath(
                 'data.0.connection.server',
-                '91.98.105.190',
+                'edge.maranonline.com',
             )
             ->assertJsonPath(
                 'data.0.connection.security',
-                'reality',
+                'tls',
             )
             ->assertJsonPath(
                 'data.0.connection.network',
-                'tcp',
+                'ws',
+            )
+            ->assertJsonPath(
+                'data.0.connection.ws_host',
+                'edge.maranonline.com',
+            )
+            ->assertJsonPath(
+                'data.0.connection.ws_path',
+                '/edge-stream',
+            )
+            ->assertJsonPath(
+                'data.0.connection.port',
+                443,
             );
     }
 

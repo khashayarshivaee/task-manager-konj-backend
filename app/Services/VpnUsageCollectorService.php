@@ -7,7 +7,6 @@ namespace App\Services;
 use App\Models\VpnUser;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Process;
 use RuntimeException;
 use Throwable;
 
@@ -15,6 +14,7 @@ class VpnUsageCollectorService
 {
     public function __construct(
         private readonly XrayManagerService $xrayManagerService,
+        private readonly XrayRuntimeService $xrayRuntimeService,
     ) {
     }
 
@@ -47,19 +47,18 @@ class VpnUsageCollectorService
                     );
                 }
 
-                $invocationBefore =
-                    $this->getXrayInvocationId();
+                // Read uptime before and after the user's counters.
+                // A restart during the read makes that sample unsafe.
+                $uptimeBefore = $this->xrayRuntimeService
+                    ->getUptimeSeconds();
 
                 $stats = $this->xrayManagerService
                     ->getUserStats($user);
 
-                $invocationAfter =
-                    $this->getXrayInvocationId();
+                $uptimeAfter = $this->xrayRuntimeService
+                    ->getUptimeSeconds();
 
-                if (
-                    $invocationBefore !==
-                    $invocationAfter
-                ) {
+                if ($uptimeAfter < $uptimeBefore) {
                     $result['skipped']++;
 
                     continue;
@@ -79,7 +78,7 @@ class VpnUsageCollectorService
                     $user,
                     $downlink,
                     $uplink,
-                    $invocationAfter,
+                    $uptimeAfter,
                     $userUpdatedAt,
                 );
 
@@ -94,58 +93,11 @@ class VpnUsageCollectorService
         return $result;
     }
 
-    private function getXrayInvocationId(): string
-    {
-        $serviceName = trim(
-            (string) config(
-                'xray.service_name',
-                'xray.service',
-            ),
-        );
-
-        if ($serviceName === '') {
-            throw new RuntimeException(
-                'Xray service name is not configured.',
-            );
-        }
-
-        $result = Process::timeout(5)->run([
-            'systemctl',
-            'show',
-            $serviceName,
-            '--property=InvocationID',
-            '--value',
-        ]);
-
-        if ($result->failed()) {
-            throw new RuntimeException(
-                'Unable to read Xray invocation ID.',
-            );
-        }
-
-        $invocationId = strtolower(
-            trim($result->output()),
-        );
-
-        if (
-            preg_match(
-                '/^[a-f0-9]{32}$/',
-                $invocationId,
-            ) !== 1
-        ) {
-            throw new RuntimeException(
-                'Invalid Xray invocation ID.',
-            );
-        }
-
-        return $invocationId;
-    }
-
     private function collectForUser(
         VpnUser $user,
         int $downlink,
         int $uplink,
-        string $invocationId,
+        int $uptimeSeconds,
         string $userUpdatedAt,
     ): string {
         return DB::transaction(
@@ -153,7 +105,7 @@ class VpnUsageCollectorService
                 $user,
                 $downlink,
                 $uplink,
-                $invocationId,
+                $uptimeSeconds,
                 $userUpdatedAt,
             ): string {
                 $now = CarbonImmutable::now('UTC');
@@ -165,28 +117,18 @@ class VpnUsageCollectorService
                     ->lockForUpdate()
                     ->first();
 
-                /*
-                 * First collection:
-                 * establish the initial baseline.
-                 */
+                // First collection: establish a baseline only.
                 if ($checkpoint === null) {
                     DB::table(
                         'vpn_user_usage_checkpoints',
                     )->insert([
                         'vpn_user_id' => $user->id,
-
-                        'last_downlink_bytes' =>
-                            $downlink,
-
-                        'last_uplink_bytes' =>
-                            $uplink,
-
-                        'xray_invocation_id' =>
-                            $invocationId,
-
+                        'last_downlink_bytes' => $downlink,
+                        'last_uplink_bytes' => $uplink,
+                        'xray_last_uptime_seconds' =>
+                            $uptimeSeconds,
                         'vpn_user_updated_at' =>
                             $userUpdatedAt,
-
                         'last_collected_at' => $now,
                         'created_at' => $now,
                         'updated_at' => $now,
@@ -201,22 +143,17 @@ class VpnUsageCollectorService
                 $previousUplink =
                     (int) $checkpoint->last_uplink_bytes;
 
-                $previousInvocation =
-                    $checkpoint->xray_invocation_id;
+                $previousUptime =
+                    $checkpoint->xray_last_uptime_seconds;
+
+                $previousCollectedAt =
+                    $checkpoint->last_collected_at;
 
                 $previousUserUpdatedAt =
                     $checkpoint->vpn_user_updated_at;
 
-                /*
-                 * User state or user record changed.
-                 *
-                 * The counters may have restarted
-                 * because the user was disabled and
-                 * enabled again.
-                 *
-                 * Establish a fresh baseline rather
-                 * than calculating an unsafe delta.
-                 */
+                // A disabled/enabled or edited user
+                // needs a fresh baseline.
                 if (
                     $previousUserUpdatedAt === null ||
                     $previousUserUpdatedAt !== $userUpdatedAt
@@ -225,7 +162,7 @@ class VpnUsageCollectorService
                         (int) $checkpoint->id,
                         $downlink,
                         $uplink,
-                        $invocationId,
+                        $uptimeSeconds,
                         $userUpdatedAt,
                         $now,
                     );
@@ -233,19 +170,17 @@ class VpnUsageCollectorService
                     return 'baselined';
                 }
 
-                /*
-                 * Existing checkpoint without an
-                 * invocation ID.
-                 */
+                // Migration from the old local systemctl
+                // invocation ID. Do not count old counters again.
                 if (
-                    $previousInvocation === null ||
-                    $previousInvocation === ''
+                    $previousUptime === null ||
+                    $previousCollectedAt === null
                 ) {
                     $this->updateCheckpoint(
                         (int) $checkpoint->id,
                         $downlink,
                         $uplink,
-                        $invocationId,
+                        $uptimeSeconds,
                         $userUpdatedAt,
                         $now,
                     );
@@ -253,25 +188,30 @@ class VpnUsageCollectorService
                     return 'baselined';
                 }
 
-                /*
-                 * A different invocation indicates
-                 * that the Xray service restarted.
-                 *
-                 * Current runtime counters represent
-                 * traffic from the new runtime.
-                 */
-                if (
-                    $previousInvocation !==
-                    $invocationId
-                ) {
+                $lastCollectedTimestamp = CarbonImmutable::parse(
+                    (string) $previousCollectedAt,
+                    'UTC',
+                )->getTimestamp();
+
+                $elapsedSeconds = max(
+                    0,
+                    $now->getTimestamp() - $lastCollectedTimestamp,
+                );
+
+                $hasRestarted = $this->xrayRuntimeService
+                    ->hasRestarted(
+                        (int) $previousUptime,
+                        $uptimeSeconds,
+                        $elapsedSeconds,
+                    );
+
+                if ($hasRestarted) {
+                    // A new runtime starts with new counters.
                     $downloadDelta = $downlink;
                     $uploadDelta = $uplink;
                 } else {
-                    /*
-                     * Counter decreases within the
-                     * same runtime are suspicious.
-                     * Skip rather than double-count.
-                     */
+                    // Skip unexpected counter decreases
+                    // to prevent double-counting.
                     if (
                         $downlink < $previousDownlink ||
                         $uplink < $previousUplink
@@ -290,7 +230,7 @@ class VpnUsageCollectorService
                     (int) $checkpoint->id,
                     $downlink,
                     $uplink,
-                    $invocationId,
+                    $uptimeSeconds,
                     $userUpdatedAt,
                     $now,
                 );
@@ -320,13 +260,8 @@ class VpnUsageCollectorService
                     )->insert([
                         'vpn_user_id' => $user->id,
                         'usage_date' => $usageDate,
-
-                        'downlink_bytes' =>
-                            $downloadDelta,
-
-                        'uplink_bytes' =>
-                            $uploadDelta,
-
+                        'downlink_bytes' => $downloadDelta,
+                        'uplink_bytes' => $uploadDelta,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ]);
@@ -334,15 +269,11 @@ class VpnUsageCollectorService
                     DB::table(
                         'vpn_user_daily_usages',
                     )
-                        ->where(
-                            'id',
-                            $dailyRecord->id,
-                        )
+                        ->where('id', $dailyRecord->id)
                         ->incrementEach(
                             [
                                 'downlink_bytes' =>
                                     $downloadDelta,
-
                                 'uplink_bytes' =>
                                     $uploadDelta,
                             ],
@@ -361,24 +292,17 @@ class VpnUsageCollectorService
         int $checkpointId,
         int $downlink,
         int $uplink,
-        string $invocationId,
+        int $uptimeSeconds,
         string $userUpdatedAt,
         CarbonImmutable $now,
     ): void {
-        DB::table(
-            'vpn_user_usage_checkpoints',
-        )
+        DB::table('vpn_user_usage_checkpoints')
             ->where('id', $checkpointId)
             ->update([
                 'last_downlink_bytes' => $downlink,
                 'last_uplink_bytes' => $uplink,
-
-                'xray_invocation_id' =>
-                    $invocationId,
-
-                'vpn_user_updated_at' =>
-                    $userUpdatedAt,
-
+                'xray_last_uptime_seconds' => $uptimeSeconds,
+                'vpn_user_updated_at' => $userUpdatedAt,
                 'last_collected_at' => $now,
                 'updated_at' => $now,
             ]);

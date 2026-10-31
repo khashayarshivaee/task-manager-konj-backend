@@ -15,17 +15,22 @@ return [
 
     'api_server' => env(
         'XRAY_API_SERVER',
-        '127.0.0.1:10085',
+        '127.0.0.1:11086',
     ),
 
     'inbound_tag' => env(
         'XRAY_INBOUND_TAG',
-        'vless-reality',
+        'vless-ws-edge',
+    ),
+
+    'resync_enabled' => env(
+        'XRAY_RESYNC_ENABLED',
+        false,
     ),
 
     'server' => env(
         'XRAY_SERVER',
-        '116.202.1.136',
+        'edge.maranonline.com',
     ),
 
     'port' => (int) env(
@@ -33,10 +38,38 @@ return [
         443,
     ),
 
+    'inbound_port' => (int) env(
+        'XRAY_INBOUND_PORT',
+        12087,
+    ),
+
+    'network' => env(
+        'XRAY_NETWORK',
+        'ws',
+    ),
+
+    'security' => env(
+        'XRAY_SECURITY',
+        'tls',
+    ),
+
     'server_name' => env(
         'XRAY_SERVER_NAME',
-        'www.cloudflare.com',
+        'edge.maranonline.com',
     ),
+
+    'ws_host' => env(
+        'XRAY_WS_HOST',
+        'edge.maranonline.com',
+    ),
+
+    'ws_path' => env(
+        'XRAY_WS_PATH',
+        '/edge-stream',
+    ),
+
+    // Legacy Reality settings.
+    // Kept temporarily for compatibility with existing services.
 
     'public_key' => env(
         'XRAY_REALITY_PUBLIC_KEY',
@@ -53,7 +86,7 @@ return [
 
     'flow' => env(
         'XRAY_FLOW',
-        'xtls-rprx-vision',
+        '',
     ),
 
     'access_log' => env(

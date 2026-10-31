@@ -160,10 +160,7 @@ class VpnUserController extends Controller
 
         $uuid = Str::uuid()->toString();
 
-        $flow = (string) config(
-            'xray.flow',
-            'xtls-rprx-vision',
-        );
+        $flow = '';
 
         /*
          * Validate connection configuration before
