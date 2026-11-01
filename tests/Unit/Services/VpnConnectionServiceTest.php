@@ -6,19 +6,21 @@ namespace Tests\Unit\Services;
 
 use App\Models\VpnUser;
 use App\Services\VpnConnectionService;
+use RuntimeException;
 use Tests\TestCase;
 
 class VpnConnectionServiceTest extends TestCase
 {
-    public function test_it_builds_vless_reality_connection_data(): void
+    public function test_it_builds_vless_websocket_tls_connection_data(): void
     {
         config([
-            'xray.server' => '91.98.105.190',
+            'xray.server' => 'edge.maranonline.com',
             'xray.port' => 443,
-            'xray.server_name' => 'www.hetzner.com',
-            'xray.public_key' => 'test-public-key',
-            'xray.short_id' => '9d2929a247ef305e',
-            'xray.fingerprint' => 'chrome',
+            'xray.server_name' => 'edge.maranonline.com',
+            'xray.security' => 'tls',
+            'xray.network' => 'ws',
+            'xray.ws_host' => 'edge.maranonline.com',
+            'xray.ws_path' => '/edge-stream',
         ]);
 
         $vpnUser = new VpnUser([
@@ -27,16 +29,14 @@ class VpnConnectionServiceTest extends TestCase
             'flow' => 'xtls-rprx-vision',
         ]);
 
-        $service = app(
-            VpnConnectionService::class,
-        );
+        $service = app(VpnConnectionService::class);
 
         $connection = $service->getConnectionData(
             $vpnUser,
         );
 
         $this->assertSame(
-            '91.98.105.190',
+            'edge.maranonline.com',
             $connection['server'],
         );
 
@@ -50,52 +50,62 @@ class VpnConnectionServiceTest extends TestCase
             $connection['uuid'],
         );
 
+        // WS + TLS must not use Reality flow.
         $this->assertSame(
-            'xtls-rprx-vision',
+            '',
             $connection['flow'],
         );
 
         $this->assertSame(
-            'reality',
+            'tls',
             $connection['security'],
         );
 
         $this->assertSame(
-            'tcp',
+            'ws',
             $connection['network'],
         );
 
         $this->assertSame(
-            'www.hetzner.com',
+            'edge.maranonline.com',
             $connection['server_name'],
         );
 
         $this->assertSame(
-            'chrome',
+            'edge.maranonline.com',
+            $connection['ws_host'],
+        );
+
+        $this->assertSame(
+            '/edge-stream',
+            $connection['ws_path'],
+        );
+
+        // Legacy Reality fields must be empty.
+        $this->assertSame(
+            '',
             $connection['fingerprint'],
         );
 
         $this->assertSame(
-            'test-public-key',
+            '',
             $connection['public_key'],
         );
 
         $this->assertSame(
-            '9d2929a247ef305e',
+            '',
             $connection['short_id'],
         );
 
         $this->assertSame(
             'vless://6cf6a408-8edb-4f1e-b902-235f58211e1e'
-            .'@91.98.105.190:443'
+            .'@edge.maranonline.com:443'
             .'?encryption=none'
-            .'&flow=xtls-rprx-vision'
-            .'&security=reality'
-            .'&sni=www.hetzner.com'
-            .'&fp=chrome'
-            .'&pbk=test-public-key'
-            .'&sid=9d2929a247ef305e'
-            .'&type=tcp'
+            .'&security=tls'
+            .'&sni=edge.maranonline.com'
+            .'&type=ws'
+            .'&host=edge.maranonline.com'
+            .'&path=%2Fedge-stream'
             .'#Khashayar%20iPhone',
             $connection['url'],
         );
@@ -105,20 +115,22 @@ class VpnConnectionServiceTest extends TestCase
     {
         config([
             'xray.server' => '',
-            'xray.server_name' => 'www.hetzner.com',
-            'xray.public_key' => 'test-public-key',
-            'xray.short_id' => '9d2929a247ef305e',
-            'xray.fingerprint' => 'chrome',
+            'xray.port' => 443,
+            'xray.server_name' => 'edge.maranonline.com',
+            'xray.security' => 'tls',
+            'xray.network' => 'ws',
+            'xray.ws_host' => 'edge.maranonline.com',
+            'xray.ws_path' => '/edge-stream',
         ]);
 
         $vpnUser = new VpnUser([
             'name' => 'Test Device',
             'uuid' => '6cf6a408-8edb-4f1e-b902-235f58211e1e',
-            'flow' => 'xtls-rprx-vision',
+            'flow' => '',
         ]);
 
         $this->expectException(
-            \RuntimeException::class,
+            RuntimeException::class,
         );
 
         app(VpnConnectionService::class)

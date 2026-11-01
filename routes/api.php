@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\ClientSpeedTestController;
 use App\Http\Controllers\Api\ServerSpeedTestController;
 use App\Http\Controllers\Api\ServerHealthController;
 use App\Http\Controllers\Api\ServerServicesStatusController;
+use App\Http\Controllers\Api\VpnServerActivityController;
 /*
 |--------------------------------------------------------------------------
 | KONJ TEAM Telegram Bot Webhook
@@ -1130,6 +1131,29 @@ Route::get(
         'verified',
         EnsureCanAccessVpnSessions::class,
     ]);
+
+
+/*
+|--------------------------------------------------------------------------
+| VPN Server Activity
+|--------------------------------------------------------------------------
+|
+| VPN usage activity collected from Xray.
+| Restricted to the authorized VPN administrator.
+|
+*/
+
+Route::get(
+    '/vpn/server-activity',
+    VpnServerActivityController::class,
+)
+    ->middleware([
+        'auth:sanctum',
+        EnsureUserIsActive::class,
+        'verified',
+        EnsureCanAccessVpnSessions::class,
+    ]);
+
 
 Route::get(
     '/vpn/users',
