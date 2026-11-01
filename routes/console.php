@@ -24,6 +24,7 @@ Artisan::command('inspire', function (): void {
  * The log path and cursor source are
  * configurable for each Xray instance.
  */
+
 Schedule::command(
     'vpn:xray-ingest-destinations',
     [
@@ -39,7 +40,15 @@ Schedule::command(
     ],
 )
     ->everyMinute()
+    ->when(
+        static fn (): bool =>
+        (bool) config(
+            'xray.destinations_ingest_enabled',
+            false,
+        ),
+    )
     ->withoutOverlapping();
+
 
 /*
  * Collect daily VPN traffic usage.
