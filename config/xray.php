@@ -28,6 +28,15 @@ return [
         false,
     ),
 
+    /*
+ * Remote VPN destinations collector.
+ * Disabled until production verification.
+ */
+    'remote_destinations_enabled' => env(
+        'XRAY_REMOTE_DESTINATIONS_ENABLED',
+        false,
+    ),
+
     'server' => env(
         'XRAY_SERVER',
         'edge.maranonline.com',

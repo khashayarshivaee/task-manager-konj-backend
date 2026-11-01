@@ -49,6 +49,26 @@ Schedule::command(
     )
     ->withoutOverlapping();
 
+/*
+ * Collect VPN destinations from the
+ * remote Germany Xray server.
+ *
+ * Disabled by default until production
+ * verification is complete.
+ */
+Schedule::command(
+    'vpn:xray-ingest-remote-destinations',
+)
+    ->everyMinute()
+    ->when(
+        static fn (): bool =>
+        (bool) config(
+            'xray.remote_destinations_enabled',
+            false,
+        ),
+    )
+    ->withoutOverlapping(5);
+
 
 /*
  * Collect daily VPN traffic usage.
