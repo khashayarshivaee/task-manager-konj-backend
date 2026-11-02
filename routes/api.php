@@ -1545,6 +1545,28 @@ Route::get(
 ]);
 
 
+/*
+|--------------------------------------------------------------------------
+| Multi-Server Monitoring - Manual Refresh
+|--------------------------------------------------------------------------
+|
+| Refresh remote server health and services
+| only when explicitly requested.
+|
+*/
+
+Route::post(
+    '/server-status/servers/{server:slug}/refresh',
+    \App\Http\Controllers\Api\MonitoredServerRefreshController::class,
+)->middleware([
+    'auth:sanctum',
+    EnsureUserIsActive::class,
+    'verified',
+    'throttle:3,1',
+]);
+
+
+
 
 
 
