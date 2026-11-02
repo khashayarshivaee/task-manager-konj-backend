@@ -259,4 +259,53 @@ final class MonitoredServerRefreshTest extends TestCase
             ),
         ]);
     }
+
+
+    public function test_company_server_refresh_works(): void
+    {
+        $this->authenticate();
+
+        $this->createServer('company', 'ssh');
+
+        config()->set('server_monitoring.remotes.company', [
+            'enabled' => true,
+            'host' => 'monitor.example.test',
+            'port' => 22,
+            'user' => 'konjmonitor',
+            'identity_file' => '/tmp/company-monitoring-test-key',
+            'known_hosts_file' => '/tmp/monitoring-test-hosts',
+            'remote_command' => 'snapshot',
+            'connect_timeout' => 8,
+            'process_timeout' => 20,
+        ]);
+
+        $this->fakeSuccess();
+
+        $this->postJson(
+            '/api/server-status/servers/company/refresh',
+        )
+            ->assertOk()
+            ->assertJsonPath('status', 'completed')
+            ->assertJsonPath('server.slug', 'company')
+            ->assertJsonPath('health.cpu_percent', 42.5)
+            ->assertJsonPath(
+                'services.services.0.status',
+                'active',
+            );
+
+        $this->assertEquals(
+            42.5,
+            Cache::get(
+                'server-status:servers:company:health:latest',
+            )['cpu_percent'],
+        );
+
+        // Germany's cache must remain untouched.
+        $this->assertNull(
+            Cache::get(
+                'server-status:servers:germany:health:latest',
+            ),
+        );
+    }
+
 }

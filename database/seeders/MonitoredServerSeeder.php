@@ -32,5 +32,18 @@ final class MonitoredServerSeeder extends Seeder
                 'sort_order' => 1,
             ],
         );
+
+
+        MonitoredServer::query()->firstOrCreate(
+            ['slug' => 'company'],
+            [
+                'name' => 'Company Main Server',
+                'region' => null,
+                'driver' => 'ssh',
+                'is_enabled' => true,
+                'sort_order' => 2,
+            ],
+        );
+
     }
 }

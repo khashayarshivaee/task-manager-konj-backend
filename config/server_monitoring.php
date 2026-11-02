@@ -56,6 +56,37 @@ return [
             'process_timeout' => 20,
         ],
 
+
+        'company' => [
+
+            'enabled' => (bool) env(
+                'MONITORING_COMPANY_ENABLED',
+                false,
+            ),
+
+            'host' => env(
+                'MONITORING_COMPANY_SSH_HOST',
+            ),
+
+            'port' => 22,
+
+            'user' => 'konjmonitor',
+
+            'identity_file' =>
+                '/etc/task-manager/ssh/konj_almalinux_monitoring_ro',
+
+            'known_hosts_file' =>
+                '/etc/task-manager/ssh/known_hosts',
+
+            'remote_command' => 'snapshot',
+
+            'connect_timeout' => 8,
+
+            'process_timeout' => 20,
+
+        ],
+
+
     ],
 
 ];
