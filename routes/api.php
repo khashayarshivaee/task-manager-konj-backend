@@ -1482,3 +1482,69 @@ Route::middleware([
 );
 
 
+
+/*
+|--------------------------------------------------------------------------
+| Server Status - Monitored Servers
+|--------------------------------------------------------------------------
+|
+| List enabled monitoring servers.
+| Available to active and verified users.
+|
+*/
+
+Route::get(
+    '/server-status/servers',
+    \App\Http\Controllers\Api\MonitoredServerController::class . '@index',
+)->middleware([
+    'auth:sanctum',
+    EnsureUserIsActive::class,
+    'verified',
+]);
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Multi-Server Monitoring - Server Health
+|--------------------------------------------------------------------------
+|
+| Read the latest cached health snapshot
+| for a specific enabled server.
+|
+*/
+
+Route::get(
+    '/server-status/servers/{server:slug}/health',
+    \App\Http\Controllers\Api\MonitoredServerHealthController::class,
+)->middleware([
+    'auth:sanctum',
+    EnsureUserIsActive::class,
+    'verified',
+]);
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Multi-Server Monitoring - Services Status
+|--------------------------------------------------------------------------
+|
+| Return cached service status for an
+| enabled server identified by its slug.
+|
+*/
+
+Route::get(
+    '/server-status/servers/{server:slug}/services',
+    \App\Http\Controllers\Api\MonitoredServerServicesStatusController::class,
+)->middleware([
+    'auth:sanctum',
+    EnsureUserIsActive::class,
+    'verified',
+]);
+
+
+
+
+
