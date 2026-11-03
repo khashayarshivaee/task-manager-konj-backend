@@ -1566,6 +1566,28 @@ Route::post(
 ]);
 
 
+/*
+|--------------------------------------------------------------------------
+| Multi-Server Monitoring - Performance History
+|--------------------------------------------------------------------------
+|
+| Read historical CPU, RAM and Disk measurements
+| for an enabled monitored server.
+|
+*/
+
+Route::get(
+    '/server-status/servers/{server:slug}/history',
+    \App\Http\Controllers\Api\MonitoredServerHistoryController::class,
+)->middleware([
+    'auth:sanctum',
+    EnsureUserIsActive::class,
+    'verified',
+    'throttle:60,1',
+]);
+
+
+
 
 
 

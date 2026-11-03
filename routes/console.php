@@ -176,3 +176,31 @@ Schedule::call(function (): void {
 
 
 
+/*
+|--------------------------------------------------------------------------
+| Multi-Server Performance History
+|--------------------------------------------------------------------------
+|
+| Collect CPU, RAM and Disk history
+| for all enabled monitored servers.
+|
+| Runs every 5 minutes.
+| Disabled until explicitly enabled.
+|
+*/
+
+Schedule::command('server-status:collect-samples')
+    ->everyFiveMinutes()
+    ->when(
+        static fn (): bool =>
+        (bool) config(
+            'server_monitoring.history_enabled',
+            false,
+        ),
+    )
+    ->withoutOverlapping(5)
+    ->runInBackground();
+
+
+
+

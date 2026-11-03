@@ -16,6 +16,25 @@ return [
     |
     */
 
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Performance History
+    |--------------------------------------------------------------------------
+    |
+    | Collect historical CPU, RAM and Disk metrics.
+    | Disabled by default until production tests pass.
+    |
+    */
+
+    'history_enabled' => (bool) env(
+        'MONITORING_HISTORY_ENABLED',
+        false,
+    ),
+
+
+
     'remotes' => [
 
         'germany' => [
