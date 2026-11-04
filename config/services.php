@@ -53,13 +53,19 @@ return [
     'instagram' => [
         'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
 
+        // Instagram Graph API
         'proxy_url' => env(
             'INSTAGRAM_PROXY_URL'
+        ),
+
+        // Instagram Images & Videos CDN
+        'media_proxy_url' => env(
+            'INSTAGRAM_MEDIA_PROXY_URL'
         ),
     ],
 
 
-    'telegram' => [
+    'telegram' => ['access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
 
         'bot_username' => env(

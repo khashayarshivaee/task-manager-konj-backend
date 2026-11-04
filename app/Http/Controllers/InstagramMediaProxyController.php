@@ -43,7 +43,7 @@ class InstagramMediaProxyController extends Controller
                 'User-Agent' => 'Mozilla/5.0',
             ]);
 
-        $proxyUrl = config('services.instagram.proxy_url');
+        $proxyUrl = config('services.instagram.media_proxy_url');
 
         if (
             is_string($proxyUrl)
