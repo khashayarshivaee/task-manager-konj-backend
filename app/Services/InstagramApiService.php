@@ -6,14 +6,33 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Illuminate\Http\Client\PendingRequest;
 
 class InstagramApiService
 {
     private string $baseUrl = 'https://graph.instagram.com/v23.0';
 
+    private function request(): PendingRequest
+    {
+        $request = Http::timeout(25);
+
+        $proxyUrl = config('services.instagram.proxy_url');
+
+        if (
+            is_string($proxyUrl)
+            && trim($proxyUrl) !== ''
+        ) {
+            $request->withOptions([
+                'proxy' => trim($proxyUrl),
+            ]);
+        }
+
+        return $request;
+    }
+
     public function getMe(string $accessToken): array
     {
-        $response = Http::get(
+        $response = $this->request()->get(
             "{$this->baseUrl}/me",
             [
                 'fields' => 'id,username',
@@ -33,7 +52,7 @@ class InstagramApiService
     public function getProfile(
         string $accessToken
     ): array {
-        $response = Http::get(
+        $response = $this->request()->get(
             "{$this->baseUrl}/me",
             [
                 'fields' => implode(',', [
@@ -72,7 +91,7 @@ class InstagramApiService
             'total_interactions',
         ];
 
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$instagramId}/insights",
                 [
@@ -143,7 +162,7 @@ class InstagramApiService
         string $instagramId,
         int $limit = 12
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$instagramId}/media",
                 [
@@ -191,7 +210,7 @@ class InstagramApiService
             $payload['caption'] = $caption;
         }
 
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -213,7 +232,7 @@ class InstagramApiService
         string $instagramId,
         string $imageUrl,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -269,7 +288,7 @@ class InstagramApiService
             $payload['caption'] = $caption;
         }
 
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -291,7 +310,7 @@ class InstagramApiService
         string $instagramId,
         string $creationId
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media_publish",
@@ -372,7 +391,7 @@ class InstagramApiService
         string $accessToken,
         string $creationId
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$creationId}",
                 [
@@ -413,7 +432,7 @@ class InstagramApiService
             $payload['caption'] = $caption;
         }
 
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -435,7 +454,7 @@ class InstagramApiService
         string $instagramId,
         string $videoUrl,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -460,7 +479,7 @@ class InstagramApiService
         string $instagramId,
         string $imageUrl,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$instagramId}/media",
@@ -485,7 +504,7 @@ class InstagramApiService
         string $mediaId,
         int $limit = 50,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$mediaId}/comments",
                 [
@@ -517,7 +536,7 @@ class InstagramApiService
         string $commentId,
         string $message,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$commentId}/replies",
@@ -541,7 +560,7 @@ class InstagramApiService
         string $commentId,
         bool $hidden,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->asForm()
             ->post(
                 "{$this->baseUrl}/{$commentId}",
@@ -586,7 +605,7 @@ class InstagramApiService
         string $accessToken,
         string $commentId,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->delete(
                 "{$this->baseUrl}/{$commentId}"
             );
@@ -605,7 +624,7 @@ class InstagramApiService
         string $accessToken,
         int $limit = 25,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/me/conversations",
                 [
@@ -630,7 +649,7 @@ class InstagramApiService
         string $accessToken,
         string $conversationId,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$conversationId}",
                 [
@@ -652,7 +671,7 @@ class InstagramApiService
         string $accessToken,
         string $messageId,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->get(
                 "{$this->baseUrl}/{$messageId}",
                 [
@@ -681,7 +700,7 @@ class InstagramApiService
         string $recipientId,
         string $message,
     ): array {
-        $response = Http::withToken($accessToken)
+        $response = $this->request()->withToken($accessToken)
             ->post(
                 "{$this->baseUrl}/me/messages",
                 [

@@ -52,6 +52,10 @@ return [
 
     'instagram' => [
         'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
+
+        'proxy_url' => env(
+            'INSTAGRAM_PROXY_URL'
+        ),
     ],
 
 

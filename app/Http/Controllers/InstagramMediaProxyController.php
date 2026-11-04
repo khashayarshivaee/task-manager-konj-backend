@@ -36,16 +36,25 @@ class InstagramMediaProxyController extends Controller
             );
         }
 
-        $response = Http::timeout(20)
-            ->retry(
-                2,
-                500,
-            )
+        $client = Http::timeout(20)
+            ->retry(2, 500)
+            ->withoutRedirecting()
             ->withHeaders([
-                'User-Agent' =>
-                    'Mozilla/5.0',
-            ])
-            ->get($url);
+                'User-Agent' => 'Mozilla/5.0',
+            ]);
+
+        $proxyUrl = config('services.instagram.proxy_url');
+
+        if (
+            is_string($proxyUrl)
+            && trim($proxyUrl) !== ''
+        ) {
+            $client = $client->withOptions([
+                'proxy' => trim($proxyUrl),
+            ]);
+        }
+
+        $response = $client->get($url);
 
         if (!$response->successful()) {
             abort(
